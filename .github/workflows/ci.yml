@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  # CI never touches the network: everything runs from the committed cache, no API key.
+  FXRISK_OFFLINE: "1"
+  UV_LINK_MODE: copy
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install (locked)
+        run: uv sync --all-groups --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: Data quality from committed cache
+        # Rebuilds DuckDB from data/cache and runs every check. A FAIL (exit 1) fails the
+        # job; the committed cache is expected to pass (staleness is judged against the
+        # retrieval date, not today's date).
+        run: uv run fxrisk quality
+
+      - name: Upload quality report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-report
+          path: |
+            reports/quality_report.md
+            reports/alerts.md
