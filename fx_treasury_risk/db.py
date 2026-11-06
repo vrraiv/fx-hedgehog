@@ -66,10 +66,9 @@ def catalog_frame() -> pd.DataFrame:
 def build_database(paths: config.Paths) -> duckdb.DuckDBPyConnection:
     """Rebuild the data layer from the cache: raw table, catalogue, FX views and master.
 
-    Returns an open connection positioned on the rebuilt database.
+    Every statement is ``CREATE OR REPLACE``, so the call is idempotent and leaves tables
+    written by later stages (flows, exposure, risk) untouched. Returns an open connection.
     """
-    if paths.db_path.exists():
-        paths.db_path.unlink()
     con = connect(paths)
     cache_glob = (paths.cache_dir / "*" / "*.csv").as_posix()
     execute_file(con, "010_raw_observations", cache_glob=cache_glob)
