@@ -78,6 +78,7 @@ def build_database(paths: config.Paths) -> duckdb.DuckDBPyConnection:
     execute_file(con, "030_fx_usd_per_fcy")
     execute_file(con, "040_fx_reconciliation")
     execute_file(con, "050_fx_usd_master")
+    execute_file(con, "100_rates_short")
     n_raw = con.execute("SELECT count(*) FROM raw_observations").fetchall()[0][0]
     log.info("database rebuilt at %s (%s raw observations)", paths.db_path, n_raw)
     return con

@@ -7,11 +7,10 @@ calibrated uncertainty, and chooses forward-hedge ratios that minimise carry cos
 fixed risk budget, then backtests the policy out of sample. All market data is public and
 cached in the repository; no real company's figures are used or implied.
 
-> **Status: milestone 2 of 4.** Data layer, synthetic flows, SQL exposure aggregation,
-> the risk engine (VaR/ES by six method families, stress) and the VaR/ES coverage
-> backtests are complete and CI-tested. Exposure forecasting, forward pricing, the hedge
-> optimizer and the policy backtest (milestone 3) and the decision report (milestone 4)
-> follow.
+> **Status: milestone 3 of 4.** Data layer, synthetic flows, SQL exposure aggregation,
+> the risk engine, VaR/ES coverage backtests, exposure forecasting, CIP forward pricing,
+> the ES-budget hedge optimizer and the walk-forward policy backtest are complete and
+> CI-tested. The decision report, Airflow DAG and scheduled refresh (milestone 4) follow.
 
 ## The question this repository answers
 
@@ -19,15 +18,42 @@ cached in the repository; no real company's figures are used or implied.
 currency minimise expected hedging cost, and how would that policy have performed out of
 sample from 2015 to the present, including March 2020 and 2022?*
 
-**Headline answer:** to be filled at milestone 3, with the cost-vs-residual-risk frontier
-in `reports/figures/` and the full argument in `reports/decision_report.md`.
+**Headline answer (as of 2026-10-30, `reports/hedge_recommendation.md`):** with a
+budget of USD 4m, hedge EUR, GBP, CAD, JPY, CHF, AUD and SGD in full, BRL 70%, MXN 7%
+and INR not at all. Six of those full hedges *earn* carry because USD rates exceed the
+foreign rates, so the programme as a whole earns about USD 2.1m a year in carry against
+USD 0.5m of bid-ask, while cutting the 21-day 99% ES of the forecast book from USD 19.6m
+to the USD 4m budget. The budget is spent on the one place risk reduction is expensive:
+BRL at 9.8% a year and MXN at 2.8%.
 
-**What the backtests already say (milestone 2, `reports/var_backtest.md`):** on the
+**Out of sample, 2015 to 2026, monthly rebalance, 142 months
+(`reports/policy_backtest.md`):**
+
+| policy | P&L vol (USD m / yr) | total FX P&L (USD m) | carry + spread per year | max drawdown | months with loss beyond budget |
+|---|---|---|---|---|---|
+| unhedged | 20.5 | -36.3 | 0 | -72.3 | 39 |
+| legacy 50% | 11.4 | -19.1 | -0.8 | -45.8 | 21 |
+| full hedge | 7.0 | -2.0 | -1.6 | -21.4 | 2 |
+| optimizer, USD 4m ES budget | 8.2 | +9.6 | +1.9 | -19.1 | 5 |
+
+In March 2020 the optimizer lost USD 5.7m against an ex-ante budget of 4m, and in
+September 2022 USD 4.9m: the budget covers the risk of the hedged *forecast* exposure,
+not forecast error or intra-month exposure swings, which is why even the full hedge keeps
+USD 7m of annual P&L volatility. The frontier figure
+(`reports/figures/hedge_frontier.png`) shows the cost of any other budget.
+
+**What the risk backtests say (milestone 2, `reports/var_backtest.md`):** on the
 synthetic book, daily from 2015, plain historical simulation and the sample-covariance
 normal model fail the Christoffersen independence test (exceptions cluster), the EWMA
 normal model fixes clustering but fails at 99% (52 exceptions against 30 expected, Basel
 yellow), and the Student-t EWMA(0.94) model passes every test at 99% (34 exceptions,
-green, Acerbi-Szekely p = 0.17). That is the risk model the hedge policy will be built on.
+green, Acerbi-Szekely p = 0.17). That is the model the optimizer's ES constraint uses.
+
+**Exposure forecasts (`reports/forecast_eval.md`):** a calendar-structural regression
+with AR(1) errors beats the seasonal naive by a skill of about 0.8 at every horizon from
+1 to 63 days (median error 5-7% of exposure). Its 95% intervals cover about 86% of
+outcomes, so they are somewhat too narrow; the calibration plot shows this rather than
+hiding it.
 
 ## Architecture
 
@@ -42,10 +68,12 @@ green, Acerbi-Szekely p = 0.17). That is the risk model the hedge policy will be
                                  |              reports/quality_report.md, reports/alerts.md
                           fxrisk flows    ---->  data/flows.parquet (deterministic, config/flows.yaml)
                           fxrisk exposure ---->  sql/060..090: flows -> components -> waterfall
+                          fxrisk forecast ---->  forecast_results/eval/latest; reports/forecast_eval.md + figures
+                          fxrisk hedge    ---->  rates_short, forwards, optimizer; reports/hedge_recommendation.md + frontier
+                          fxrisk backtest ---->  VaR/ES coverage tests; walk-forward policy backtest; reports/*.md + figures
                           fxrisk risk     ---->  risk_results, stress_results; reports/risk_tables.md
-                          fxrisk backtest ---->  var_backtest_results; reports/var_backtest.md
                                  v
-                 forecast -> hedge -> policy backtest -> report        (milestones 3-4)
+                          fxrisk report   ---->  reports/decision_report.md                (milestone 4)
 ```
 
 | Layer | Where | What |
@@ -55,20 +83,23 @@ green, Acerbi-Szekely p = 0.17). That is the risk model the hedge policy will be
 | SQL | `sql/*.sql` | every transformation, loaded by file name, commented for a reader learning SQL |
 | Exposure | `sql/060-090`, `fx_treasury_risk/exposure/` | running-sum positions by component, USD translation, gross / net / net-of-hedges waterfall |
 | Risk | `fx_treasury_risk/risk/` | returns, sample / EWMA / Ledoit-Wolf covariance, historical / normal / Student-t / t-copula Monte Carlo VaR and ES, stress |
-| Backtest | `fx_treasury_risk/backtest/` | Kupiec, Christoffersen, conditional coverage, traffic light, Acerbi-Szekely Z1/Z2 |
-| CLI | `fx_treasury_risk/cli.py` | `fxrisk fetch \| quality \| flows \| exposure \| risk \| backtest \| all` |
-| Docs | `docs/` | `methodology.md` (conventions and methods), `hedging-primer.md`, `backlog.md`, `decisions/` (ADRs 0001-0010) |
+| Forecast | `fx_treasury_risk/forecast/` | seasonal naive and calendar-structural AR(1) exposure forecasts, rolling-origin evaluation, calibration figures |
+| Hedge | `fx_treasury_risk/hedge/`, `sql/100_rates_short.sql`, `config/hedge.yaml` | short-rate assembly, CIP forwards and carry, ES-budget optimizer (SLSQP), frontier |
+| Backtest | `fx_treasury_risk/backtest/` | Kupiec, Christoffersen, conditional coverage, traffic light, Acerbi-Szekely Z1/Z2; walk-forward policy backtest |
+| CLI | `fx_treasury_risk/cli.py` | `fxrisk fetch \| quality \| flows \| exposure \| forecast \| hedge \| backtest \| risk \| all` |
+| Docs | `docs/` | `methodology.md` (conventions and methods), `hedging-primer.md`, `backlog.md`, `decisions/` (ADRs 0001-0013) |
 
 ## How to run
 
 ```bash
 uv sync --all-groups            # Python 3.12 environment from uv.lock
-uv run fxrisk all               # fetch (no-op from cache) -> quality -> flows -> exposure -> risk -> backtest
-uv run pytest                   # 63 tests, no network, about a minute
+uv run fxrisk all               # fetch (no-op from cache) -> quality -> flows -> exposure -> forecast -> hedge -> backtest -> risk
+uv run pytest                   # 87 tests, no network, about a minute
 ```
 
 Individual stages run in the same order as `all`. Timings on a laptop: quality 3 s,
-flows 2 s, exposure 5 s, risk 40 s (Monte Carlo), backtest 90 s (ES simulations).
+flows 2 s, exposure 5 s, forecast 20 s, hedge 5 s, backtest 4 min (ES simulations and
+142 monthly optimizations), risk 40 s (Monte Carlo).
 
 * A `FRED_API_KEY` in the environment or in a git-ignored `.env` switches the FRED
   loader to the official API; without it the public CSV download is used. Neither is
@@ -152,6 +183,13 @@ the optimizer. Details in `docs/methodology.md` sections 3-4 and ADR-0008.
 * **Weekday calendar**, no holidays, for settlement and payouts (backlog B9).
 * **Coverage tests at one day only.** Ten- and 21-day numbers are reported with a
   caveat; overlapping windows break the tests' independence assumption (ADR-0010).
+* **Forecast intervals are about 10% too narrow** (ADR-0011, backlog B16) and the ES
+  budget covers only the hedged forecast exposure, not forecast error or intra-month
+  exposure swings (ADR-0013).
+* **Carry is an expected cost** under a random-walk spot; realized hedging cost in the
+  backtest includes the spot move (hedging primer, section 3).
+* **Stylized transaction costs** (one-way spreads from 0.5 bp to 8 bp) and no
+  cross-currency or NDF basis.
 * **Not a product:** no scheduler is executed in CI, no database beyond a local DuckDB
   file, no access control.
 
@@ -159,7 +197,7 @@ the optimizer. Details in `docs/methodology.md` sections 3-4 and ADR-0008.
 
 ```
 fx_treasury_risk/   package (data/, flows/, exposure/, risk/, backtest/, hedge/, forecast/, report/, cli.py)
-config/             flows.yaml - the stylized business
+config/             flows.yaml (the stylized business), hedge.yaml (budget, costs, policy)
 sql/                all SQL, numbered in execution order
 data/cache/         committed source data + manifest.json
 tests/              pytest suite; tests/fixtures holds trimmed real API responses

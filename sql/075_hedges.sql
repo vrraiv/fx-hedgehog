@@ -54,6 +54,9 @@ UNION ALL
 SELECT l.trade_date, l.maturity_date, l.entity, l.ccy, l.notional_fcy, l.source
 FROM hedges_legacy AS l
 WHERE NOT EXISTS (
+    -- an optimizer position for the same currency and month (any entity, including the
+    -- group-level 'GROUP' rows) replaces the legacy rule for that month
     SELECT 1 FROM hedge_positions AS p
-    WHERE p.entity = l.entity AND p.ccy = l.ccy AND p.trade_date = l.trade_date
+    WHERE p.ccy = l.ccy
+      AND date_trunc('month', p.trade_date) = date_trunc('month', l.trade_date)
 );
