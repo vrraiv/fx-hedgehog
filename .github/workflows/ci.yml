@@ -41,12 +41,14 @@ jobs:
         # retrieval date, not today's date).
         run: uv run fxrisk quality
 
-      - name: Flows, exposure, risk and backtest from cache
+      - name: Flows, exposure, forecast, hedge, backtests and risk from cache
         run: |
           uv run fxrisk flows
           uv run fxrisk exposure
-          uv run fxrisk risk --mc-paths 5000
+          uv run fxrisk forecast
+          uv run fxrisk hedge
           uv run fxrisk backtest
+          uv run fxrisk risk --mc-paths 5000
 
       - name: Upload quality report
         if: always()
@@ -58,3 +60,7 @@ jobs:
             reports/alerts.md
             reports/risk_tables.md
             reports/var_backtest.md
+            reports/forecast_eval.md
+            reports/hedge_recommendation.md
+            reports/policy_backtest.md
+            reports/figures/*.png

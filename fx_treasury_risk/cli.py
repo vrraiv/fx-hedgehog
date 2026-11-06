@@ -14,6 +14,7 @@ import logging
 from collections.abc import Sequence
 from typing import Annotated
 
+import pandas as pd
 import typer
 from rich.console import Console
 from rich.logging import RichHandler
@@ -187,41 +188,83 @@ def risk(
 
 @app.command()
 def forecast() -> None:
-    """Forecast net exposure 1-63 days ahead with prediction intervals (milestone 3)."""
-    _not_yet("forecast", 3)
+    """Forecast net exposure 1-63 days ahead; rolling-origin evaluation with calibration plots."""
+    from fx_treasury_risk.forecast.evaluate import headline
+    from fx_treasury_risk.forecast.pipeline import run_forecast
+
+    paths = config.Paths.from_env()
+    run = run_forecast(paths)
+    console.print(headline(run.evaluation).round(3).to_string(index=False))
+    console.print(
+        f"report: {paths.reports_dir / 'forecast_eval.md'}; figures in {paths.figures_dir}"
+    )
 
 
 @app.command()
 def hedge() -> None:
-    """Price forwards and optimize hedge ratios against an ES budget (milestone 3)."""
-    _not_yet("hedge", 3)
+    """Price forwards, solve for hedge ratios under the ES budget, trace the frontier."""
+    from fx_treasury_risk.hedge.pipeline import run_hedge
+
+    paths = config.Paths.from_env()
+    run = run_hedge(paths)
+    sol = run.solution
+    annual_cost = (sol.carry_cost_usd + sol.spread_cost_usd) * 365 / run.problem.tenor_days
+    console.print(f"as of {run.as_of.date()}; exposure input: {run.exposure_source}")
+    console.print(
+        f"unhedged ES {sol.unhedged_es_usd / 1e6:.2f}m -> "
+        f"residual {sol.residual_es_usd / 1e6:.2f}m "
+        f"vs budget {sol.budget_usd / 1e6:.2f}m ({'binding' if sol.binding else 'slack'}); "
+        f"expected cost {annual_cost / 1e6:.2f}m per year"
+    )
+    tbl = pd.DataFrame(
+        {
+            "ratio": sol.ratios.round(3),
+            "notional_usd_m": (sol.notional_usd / 1e6).round(2),
+            "carry_pct": run.forwards["carry_pct_annual"].round(2),
+        }
+    )
+    console.print(tbl.to_string())
+    console.print(f"report: {paths.reports_dir / 'hedge_recommendation.md'}")
 
 
 @app.command()
 def backtest(
-    basis: Annotated[str, typer.Option(help="Exposure basis: net or net_of_hedges.")] = "net",
+    basis: Annotated[str, typer.Option(help="Exposure basis for the VaR tests.")] = "net",
+    skip_var: Annotated[
+        bool, typer.Option("--skip-var", help="Skip the VaR/ES coverage tests.")
+    ] = False,
+    skip_policy: Annotated[
+        bool, typer.Option("--skip-policy", help="Skip the hedge-policy backtest.")
+    ] = False,
 ) -> None:
-    """VaR/ES coverage backtests out of sample from 2015 (hedge-policy backtest: milestone 3)."""
-    from fx_treasury_risk.backtest.var_backtest import run_var_backtest
-
+    """VaR/ES coverage backtests from 2015 and the walk-forward hedge-policy backtest."""
     paths = config.Paths.from_env()
-    out = run_var_backtest(paths, basis=basis)
-    cols = [
-        "method",
-        "confidence",
-        "n_obs",
-        "n_exceptions",
-        "expected_exceptions",
-        "kupiec_p",
-        "christoffersen_p",
-        "conditional_p",
-        "traffic_light",
-        "z1",
-        "z2",
-        "z2_p",
-        "verdict",
-    ]
-    console.print(out[cols].round(3).to_string(index=False))
+    if not skip_var:
+        from fx_treasury_risk.backtest.var_backtest import run_var_backtest
+
+        out = run_var_backtest(paths, basis=basis)
+        cols = [
+            "method",
+            "confidence",
+            "n_exceptions",
+            "expected_exceptions",
+            "kupiec_p",
+            "christoffersen_p",
+            "traffic_light",
+            "z2",
+            "z2_p",
+            "verdict",
+        ]
+        console.print(out[cols].round(3).to_string(index=False))
+    if not skip_policy:
+        from fx_treasury_risk.backtest.policy import run_policy_backtest
+
+        res = run_policy_backtest(paths)
+        s = res["summary"].copy()
+        money = [c for c in s.columns if c.endswith("_usd")]
+        s[money] = (s[money] / 1e6).round(2)
+        console.print(s.to_string(index=False))
+        console.print(f"report: {paths.reports_dir / 'policy_backtest.md'}")
 
 
 @app.command()
@@ -237,8 +280,10 @@ def run_all() -> None:
     quality(strict=False)
     flows()
     exposure()
-    risk()
+    forecast()
+    hedge()
     backtest()
+    risk()
 
 
 if __name__ == "__main__":  # pragma: no cover
