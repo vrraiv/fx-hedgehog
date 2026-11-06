@@ -1,0 +1,98 @@
+# Synthetic flow generator configuration.
+#
+# Everything here is STYLIZED. Volumes, shares and lags are round numbers chosen to give
+# a treasury-sized problem (group processing volume ~USD 75m/day); they are not calibrated
+# to any real company. Only the annual seasonality is estimated from data (public retail
+# sales), see docs/methodology.md section 3.
+#
+# Units: volumes are in the local currency per calendar day; rates are fractions; lags in
+# days (calendar for refunds, business for settlement).
+
+seed: 20260101
+start: 2010-01-01
+end: 2026-10-31
+
+take_rate: 0.025            # fee retained by the business, as a share of receipts
+
+refund:
+  rate: 0.03                # share of authorized volume eventually refunded
+  mean_lag_days: 12         # calendar days from authorization to refund (geometric)
+  max_lag_days: 45
+
+# Day-of-week multipliers Mon..Sun. Stylized (monthly retail data cannot identify them):
+# weekend-heavy consumer payments, quiet Monday.
+weekly_seasonality: [0.94, 0.96, 0.98, 1.00, 1.08, 1.08, 0.96]
+
+annual_seasonality:
+  source: retail_sales      # monthly NSA/SA ratio from FRED RSXFSN and StatCan 20-10-0056-01
+  profile_by_entity: {US: US, CA: CA, EA: US, UK: US}   # EA and UK borrow the US profile
+
+growth:
+  annual_rate: 0.08         # trend growth in volumes, continuously compounded
+
+noise:
+  daily_sigma: 0.06         # lognormal daily noise on authorized volume
+  ar1: 0.35                 # persistence of the daily noise
+
+# Business-day lag from authorization to cash settlement, with probabilities.
+settlement_lag_days:
+  default: {1: 0.55, 2: 0.30, 3: 0.15}
+  by_ccy:
+    BRL: {2: 0.40, 3: 0.40, 5: 0.20}
+    INR: {2: 0.50, 3: 0.30, 5: 0.20}
+    MXN: {1: 0.30, 2: 0.40, 3: 0.30}
+
+payout:
+  # daily = every business day; weekly = Fridays. Merchant payouts cover everything
+  # settled since the previous payout date.
+  schedule_by_entity: {US: daily, CA: daily, EA: weekly, UK: weekly}
+  # Share of merchant payouts made in the collected currency (the rest is converted to the
+  # entity's functional currency, which is where FX exposure comes from).
+  same_ccy_share:
+    default: 0.60
+    by_ccy: {JPY: 0.30, BRL: 0.20, INR: 0.20, MXN: 0.40, SGD: 0.50}
+
+fee_sweep: monthly          # retained fees (net of refunds) converted to functional ccy on the last business day
+
+entities:
+  US:
+    functional: USD
+    volumes_per_day:
+      USD: 30000000
+      CAD: 3000000
+      MXN: 40000000
+      BRL: 8000000
+      JPY: 250000000
+      AUD: 2500000
+      INR: 150000000
+      SGD: 2000000
+  CA:
+    functional: CAD
+    volumes_per_day:
+      CAD: 8000000
+      USD: 3000000
+  EA:
+    functional: EUR
+    volumes_per_day:
+      EUR: 12000000
+      GBP: 1500000
+      CHF: 1200000
+  UK:
+    functional: GBP
+    volumes_per_day:
+      GBP: 7000000
+      EUR: 2000000
+      CHF: 400000
+
+# Working-capital loans from the US parent to each subsidiary in the subsidiary's
+# functional currency. Proceeds are spent on payouts (so the subsidiary's cash does not
+# rise); the receivable at the parent and the payable at the subsidiary net to zero at
+# group level but both appear in gross exposure. Topped up quarterly in line with growth.
+intercompany:
+  loans_from_us: {CA: 20000000, EA: 15000000, UK: 10000000}
+
+# Regime switches (growth shocks) applied as multipliers on authorized volume. Used for
+# stress scenarios and to make the exposure forecast non-trivial.
+regimes:
+  - {name: covid_collapse, start: 2020-03-15, end: 2020-05-31, multiplier: 0.65}
+  - {name: covid_rebound, start: 2020-06-01, end: 2020-12-31, multiplier: 1.15}
