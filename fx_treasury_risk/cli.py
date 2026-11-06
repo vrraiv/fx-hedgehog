@@ -123,20 +123,66 @@ def _not_yet(stage: str, milestone: int) -> None:
 
 @app.command()
 def flows() -> None:
-    """Generate synthetic merchant flows (milestone 2)."""
-    _not_yet("flows", 2)
+    """Generate the synthetic merchant flows (deterministic) into data/flows.parquet."""
+    from fx_treasury_risk.flows.pipeline import run_flows
+
+    paths = config.Paths.from_env()
+    result = run_flows(paths)
+    table = Table(title=f"flows: {result.n_rows:,} rows, {result.first_date} to {result.last_date}")
+    table.add_column("entity")
+    table.add_column("ccy")
+    table.add_column("mean daily authorized (local ccy)", justify="right")
+    for r in result.summary.itertuples(index=False):
+        table.add_row(str(r.entity), str(r.ccy), f"{r.mean_daily_auth:,.0f}")
+    console.print(table)
+    console.print(f"written: {result.path}")
 
 
 @app.command()
 def exposure() -> None:
-    """Aggregate net exposure by entity, currency and date in DuckDB (milestone 2)."""
-    _not_yet("exposure", 2)
+    """Aggregate net exposure by entity, currency and date in DuckDB (SQL in sql/060-090)."""
+    from fx_treasury_risk.exposure.build import build_exposure, latest_waterfall
+
+    paths = config.Paths.from_env()
+    con = build_exposure(paths)
+    try:
+        wf = latest_waterfall(con)
+    finally:
+        con.close()
+    table = Table(title="group exposure waterfall on the last date (USD millions)")
+    for col in ("ccy", "gross", "net", "hedge", "net of hedges"):
+        table.add_column(col, justify="left" if col == "ccy" else "right")
+    for r in wf.itertuples(index=False):
+        table.add_row(
+            str(r.ccy),
+            f"{r.gross_usd_m:,.1f}",
+            f"{r.net_usd_m:,.1f}",
+            f"{r.hedge_usd_m:,.1f}",
+            f"{r.net_of_hedges_usd_m:,.1f}",
+        )
+    console.print(table)
 
 
 @app.command()
-def risk() -> None:
-    """Compute VaR, Expected Shortfall and stress results (milestone 2)."""
-    _not_yet("risk", 2)
+def risk(
+    mc_paths: Annotated[int, typer.Option(help="Monte Carlo paths per horizon.")] = 20_000,
+) -> None:
+    """Compute VaR and Expected Shortfall (all methods) and stress results, latest date."""
+    from fx_treasury_risk.risk.pipeline import headline_table, run_risk
+
+    paths = config.Paths.from_env()
+    run = run_risk(paths, mc_paths=mc_paths)
+    console.print(f"as of {run.as_of.date()}; exposures (USD m):")
+    console.print((run.exposures / 1e6).round(1).to_string())
+    for basis in ("net", "net_of_hedges"):
+        console.rule(f"VaR / ES, basis = {basis} (USD m)")
+        console.print(headline_table(run.risk, basis).to_string())
+    console.rule("stress, basis = net (USD m)")
+    st = run.stress[run.stress["basis"] == "net"][
+        ["scenario", "kind", "propagated", "largest_move", "pnl_usd"]
+    ].copy()
+    st["pnl_usd"] = (st["pnl_usd"] / 1e6).round(2)
+    console.print(st.to_string(index=False))
 
 
 @app.command()
@@ -152,9 +198,30 @@ def hedge() -> None:
 
 
 @app.command()
-def backtest() -> None:
-    """Coverage tests and walk-forward hedge-policy backtest (milestone 3)."""
-    _not_yet("backtest", 3)
+def backtest(
+    basis: Annotated[str, typer.Option(help="Exposure basis: net or net_of_hedges.")] = "net",
+) -> None:
+    """VaR/ES coverage backtests out of sample from 2015 (hedge-policy backtest: milestone 3)."""
+    from fx_treasury_risk.backtest.var_backtest import run_var_backtest
+
+    paths = config.Paths.from_env()
+    out = run_var_backtest(paths, basis=basis)
+    cols = [
+        "method",
+        "confidence",
+        "n_obs",
+        "n_exceptions",
+        "expected_exceptions",
+        "kupiec_p",
+        "christoffersen_p",
+        "conditional_p",
+        "traffic_light",
+        "z1",
+        "z2",
+        "z2_p",
+        "verdict",
+    ]
+    console.print(out[cols].round(3).to_string(index=False))
 
 
 @app.command()
@@ -168,6 +235,10 @@ def run_all() -> None:
     """Run every implemented stage in order."""
     fetch(source=None, refresh=False)
     quality(strict=False)
+    flows()
+    exposure()
+    risk()
+    backtest()
 
 
 if __name__ == "__main__":  # pragma: no cover
