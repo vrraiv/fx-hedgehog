@@ -210,16 +210,67 @@ Code: `fx_treasury_risk/risk/`. Choices: ADR-0009.
 
 ## 6. Exposure forecasting *(milestone 3)*
 
+Code: `fx_treasury_risk/forecast/`. Choices and evidence: ADR-0011. Output:
+`reports/forecast_eval.md` and the three figures it embeds.
+
+* **Target:** group net exposure per currency in currency units (`net_fcy` from
+  `exposure_group_fx`), on the NY business-day calendar, 1-63 trading days ahead.
+* **Baseline:** seasonal naive at lag 21 trading days; intervals from its own in-window
+  error quantiles per horizon.
+* **Model:** log exposure regressed on calendar features (weekday, 0-4 trading days to
+  month end, first three trading days of the month, month of year, linear trend) with
+  AR(1) errors; 750-day training window. Point forecast
+  `x_{T+h}' beta + phi^h e_T`; intervals from the empirical quantiles of the model's
+  in-sample `h`-step errors, standardised by the target day's day-type volatility and
+  conditioned on the origin's day type.
+* **Evaluation:** rolling origin, one origin per month (the last trading day, so the
+  first horizon is the rebalance day), 140 origins from 2015 to 2026; pinball loss over
+  seven quantiles scaled by the mean actual, median MAPE, central-interval coverage at
+  50/80/95, skill versus the naive. Figures: calibration (empirical vs nominal coverage
+  per horizon, one line per currency), pinball by horizon per currency, a fan chart with
+  the realised path.
+* **Result:** skill about 0.8 at every horizon; median MAPE 5-7%; coverage 0.86 at
+  nominal 0.95, i.e. intervals somewhat too narrow (stated in the report).
+
 ## 7. Hedge optimization *(milestone 3)*
+
+Code: `fx_treasury_risk/hedge/`. Instrument mechanics: `docs/hedging-primer.md`.
+Formulation and solver: ADR-0012. Output: `reports/hedge_recommendation.md` and
+`reports/figures/hedge_frontier.png`.
+
+* **Short rates** (`sql/100_rates_short.sql`): per currency a primary 3-month market
+  rate where available, falling back to the BIS daily policy rate when the primary is
+  more than 120 days stale; monthly series carried to daily with an ASOF JOIN; SGD
+  proxied by USD and flagged. US T-bills converted from discount to simple yield.
+* **Forwards:** covered interest parity with simple rates and per-market day counts,
+  tenor = calendar days to the next rebalance (30 for the as-of table). Forward points
+  and the annualized hedge cost rate `(S - F)/S * 365/days` are reported per currency.
+* **Optimizer:** minimise expected carry plus bid-ask subject to the 21-day 99% ES of
+  the hedged book (variance-matched Student-t on the EWMA(0.94) covariance) staying
+  within the budget; ratios in [0, 1]; minimum ticket as a post-step; SLSQP.
+* **Frontier:** the budget is swept from zero to the unhedged ES; each point is the
+  optimal (residual ES, annualized cost) pair. Unhedged, legacy 50% and full hedge are
+  plotted for reference.
 
 ## 8. Backtesting *(milestones 2-3)*
 
 ### 8.1 VaR and ES coverage *(milestone 2)*
 
-Code: `fx_treasury_risk/backtest/`. Design: ADR-0010. Daily one-day forecasts from
-2015-01-02 along the actual exposure path for historical simulation, normal (sample and
-EWMA covariance) and Student-t (EWMA) models. Tests: Kupiec, Christoffersen, conditional
-coverage, Basel traffic light, Acerbi-Szekely Z1 and Z2 with simulated p-values. Output:
-`var_backtest_results` in DuckDB; `reports/var_backtest.md`.
+Code: `fx_treasury_risk/backtest/coverage.py`, `var_backtest.py`. Design: ADR-0010.
+Daily one-day forecasts from 2015-01-02 along the actual exposure path for historical
+simulation, normal (sample and EWMA covariance) and Student-t (EWMA) models. Tests:
+Kupiec, Christoffersen, conditional coverage, Basel traffic light, Acerbi-Szekely Z1 and
+Z2 with simulated p-values. Output: `var_backtest_results`; `reports/var_backtest.md`.
 
 ### 8.2 Hedge-policy backtest *(milestone 3)*
+
+Code: `fx_treasury_risk/backtest/policy.py`. Design: ADR-0013. Output:
+`reports/policy_backtest.md` and three figures.
+
+Walk-forward, monthly rebalance from 2015-01-02, one-month forwards priced by CIP at the
+origin, hedging the 21-day-ahead forecast exposure; realised P&L from the actual
+exposure path, forward mark-to-market, carry and spread. Policies: unhedged, legacy 50%,
+full hedge, optimizer under a fixed USD 4m ES budget. Metrics: P&L volatility (daily
+annualized and monthly), total P&L, carry and spread per year, maximum drawdown, worst
+month, months with a loss beyond the budget, share of months in which the budget bound;
+overall, by year, and for March/April 2020 and September/October 2022.

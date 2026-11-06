@@ -44,17 +44,20 @@ tenor is of the order of 0.1 bp of the spot and is ignored.
 forward point means the FCY is *more* expensive forward than spot, which happens when
 `r_usd > r_fcy`.
 
-Worked example (the unit test in `tests/test_forwards.py` will use these numbers):
+Worked example (the unit test in `tests/test_forwards.py` uses these numbers):
 `S = 1.1000` USD per EUR, `r_usd = 5.00%`, `r_fcy = 3.50%`, `tau = 0.25`.
 `F = 1.1000 * 1.0125 / 1.00875 = 1.10409`. Forward points = +40.9 pips.
 
 ### Day count
 
-`tau` is computed as `days / 360` for USD and EUR money-market rates and `days / 365` for
-GBP, CAD, AUD and SGD. At three months a mismatch of 360 vs 365 changes `F` by about
-`S * (r_usd - r_fcy) * 0.25 * (5/365)`, i.e. well under one basis point of spot for any
-rate differential seen in the sample. The code applies the convention per currency and
-the test asserts that the difference is below 1 bp.
+`tau` is computed as `days / 360` for USD, EUR, JPY, CHF and MXN money-market rates and
+`days / 365` for GBP, CAD, AUD, BRL, INR and SGD (the `day_count` column of
+`rates_short`). Using 360 instead of 365 for a 5% rate changes `F` by
+`S * 0.05 * days * (1/360 - 1/365)`: about 1.7 bp of spot at three months and 0.6 bp at
+the one-month tenor the policy uses. The code applies the convention per currency and
+`tests/test_forwards.py` checks the size of the effect. Brazilian rates are quoted on a
+252-business-day compounded basis; treating them as simple ACT/365 at one month
+overstates the carry by a few basis points, which is noted rather than modelled.
 
 ### Discount-basis T-bills
 
@@ -83,8 +86,13 @@ backtest reports *realized* hedging cost, which includes the spot move.
 Exposures persist beyond the tenor of a single forward, so hedges are rolled: at each
 monthly rebalance the maturing forward is settled and a new one is dealt. Over a year of
 monthly rolls the realized cost is the sum of twelve monthly carries plus the bid-ask
-spread paid on each roll. The backtest charges a per-currency spread from a fixed table
-(ADR, milestone 3) and reports it separately from carry.
+spread paid on each roll. The backtest charges a per-currency one-way spread from the
+table in `config/hedge.yaml` (0.5 bp for EUR to 8 bp for BRL, stylized) on the full
+notional dealt each month and reports it separately from carry (ADR-0013).
+
+In the backtest the forward's P&L is marked daily as `notional * dS` (a forward's delta is
+one) plus carry `notional * (S_0 - F)` accrued evenly over the month; the two sum to the
+payoff `notional * (S_T - F)` at maturity. `tests/test_policy.py` checks that identity.
 
 ## 5. What is deliberately not modelled in v1
 

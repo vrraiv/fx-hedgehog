@@ -19,3 +19,7 @@ deferred, and what it would take.
 | B12 | **GARCH / realised-volatility models** alongside EWMA. | EWMA(0.94) with t tails already passes the 99% tests; GARCH adds parameters without a clear gain for a treasury process. | 1-2 days |
 | B13 | **Filtered historical simulation** (Barone-Adesi et al.) to fix the clustering failures of plain historical simulation. | Would add a fifth method; the t-EWMA model already addresses clustering. | 0.5 day |
 | B14 | **Monte Carlo in the daily backtest.** | Equivalent to the t-EWMA model at a one-day horizon for a linear book (ADR-0010). | 0.5 day |
+| B15 | **SARIMA / ETS (statsmodels) and a Bayesian structural model** as alternative exposure forecasters. | The calendar regression with AR(1) errors reaches skill 0.8 vs naive in sixty lines of numpy; a heavier model needs to beat that to earn the dependency. | 1-2 days |
+| B16 | **Conformal calibration of forecast intervals** from past out-of-sample errors. | Intervals are 10-15% too narrow (ADR-0011); a rolling empirical adjustment would fix the level without changing the model. | 0.5 day |
+| B17 | **Intra-month hedge adjustment** when exposure drifts beyond a band. | Monthly rolls are the common corporate practice; a band rule needs transaction-cost calibration. | 1 day |
+| B18 | **Cross-currency basis and NDF basis** in the policy backtest's realized cost. | No public daily basis data (see B3). | depends on data |
