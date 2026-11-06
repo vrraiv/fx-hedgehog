@@ -7,9 +7,11 @@ calibrated uncertainty, and chooses forward-hedge ratios that minimise carry cos
 fixed risk budget, then backtests the policy out of sample. All market data is public and
 cached in the repository; no real company's figures are used or implied.
 
-> **Status: milestone 1 of 4 (data layer).** Loaders, cache, SQL conversion layer,
-> cross-source reconciliation and quality checks are complete and CI-tested. Flows,
-> exposure, risk, forecasting, hedging and the decision report follow in milestones 2-4.
+> **Status: milestone 2 of 4.** Data layer, synthetic flows, SQL exposure aggregation,
+> the risk engine (VaR/ES by six method families, stress) and the VaR/ES coverage
+> backtests are complete and CI-tested. Exposure forecasting, forward pricing, the hedge
+> optimizer and the policy backtest (milestone 3) and the decision report (milestone 4)
+> follow.
 
 ## The question this repository answers
 
@@ -19,6 +21,13 @@ sample from 2015 to the present, including March 2020 and 2022?*
 
 **Headline answer:** to be filled at milestone 3, with the cost-vs-residual-risk frontier
 in `reports/figures/` and the full argument in `reports/decision_report.md`.
+
+**What the backtests already say (milestone 2, `reports/var_backtest.md`):** on the
+synthetic book, daily from 2015, plain historical simulation and the sample-covariance
+normal model fail the Christoffersen independence test (exceptions cluster), the EWMA
+normal model fixes clustering but fails at 99% (52 exceptions against 30 expected, Basel
+yellow), and the Student-t EWMA(0.94) model passes every test at 99% (34 exceptions,
+green, Acerbi-Szekely p = 0.17). That is the risk model the hedge policy will be built on.
 
 ## Architecture
 
@@ -31,33 +40,44 @@ in `reports/figures/` and the full argument in `reports/decision_report.md`.
                                  |              sql/010..050: raw -> catalogue -> usd_per_fcy
                                  |                            -> reconciliation -> master
                                  |              reports/quality_report.md, reports/alerts.md
+                          fxrisk flows    ---->  data/flows.parquet (deterministic, config/flows.yaml)
+                          fxrisk exposure ---->  sql/060..090: flows -> components -> waterfall
+                          fxrisk risk     ---->  risk_results, stress_results; reports/risk_tables.md
+                          fxrisk backtest ---->  var_backtest_results; reports/var_backtest.md
                                  v
-   flows -> exposure -> forecast -> risk -> hedge -> backtest -> report      (milestones 2-4)
+                 forecast -> hedge -> policy backtest -> report        (milestones 3-4)
 ```
 
 | Layer | Where | What |
 |---|---|---|
-| Loaders and cache | `fx_treasury_risk/data/` | one thin loader per source, CSV cache with provenance manifest, offline guard |
+| Loaders and cache | `fx_treasury_risk/data/` | one thin loader per source, CSV cache with provenance manifest, offline guard, quality checks |
+| Flows | `fx_treasury_risk/flows/`, `config/flows.yaml` | deterministic synthetic merchant flows; annual seasonality calibrated to public retail sales |
 | SQL | `sql/*.sql` | every transformation, loaded by file name, commented for a reader learning SQL |
-| Quality | `fx_treasury_risk/data/quality.py` | schema, staleness, reconciliation, gaps, outliers, rate ranges |
-| CLI | `fx_treasury_risk/cli.py` | `fxrisk fetch \| quality \| ...` |
-| Docs | `docs/` | `methodology.md` (conventions), `hedging-primer.md`, `backlog.md`, `decisions/` (ADRs) |
+| Exposure | `sql/060-090`, `fx_treasury_risk/exposure/` | running-sum positions by component, USD translation, gross / net / net-of-hedges waterfall |
+| Risk | `fx_treasury_risk/risk/` | returns, sample / EWMA / Ledoit-Wolf covariance, historical / normal / Student-t / t-copula Monte Carlo VaR and ES, stress |
+| Backtest | `fx_treasury_risk/backtest/` | Kupiec, Christoffersen, conditional coverage, traffic light, Acerbi-Szekely Z1/Z2 |
+| CLI | `fx_treasury_risk/cli.py` | `fxrisk fetch \| quality \| flows \| exposure \| risk \| backtest \| all` |
+| Docs | `docs/` | `methodology.md` (conventions and methods), `hedging-primer.md`, `backlog.md`, `decisions/` (ADRs 0001-0010) |
 
 ## How to run
 
 ```bash
 uv sync --all-groups            # Python 3.12 environment from uv.lock
-uv run fxrisk fetch             # no-op on a fresh clone: everything is cached
-uv run fxrisk quality           # rebuilds DuckDB, runs checks, writes reports/
-uv run pytest                   # 36 tests, no network
+uv run fxrisk all               # fetch (no-op from cache) -> quality -> flows -> exposure -> risk -> backtest
+uv run pytest                   # 63 tests, no network, about a minute
 ```
 
-* A `FRED_API_KEY` in the environment (or a local `.env`, git-ignored) switches the FRED
+Individual stages run in the same order as `all`. Timings on a laptop: quality 3 s,
+flows 2 s, exposure 5 s, risk 40 s (Monte Carlo), backtest 90 s (ES simulations).
+
+* A `FRED_API_KEY` in the environment or in a git-ignored `.env` switches the FRED
   loader to the official API; without it the public CSV download is used. Neither is
   needed to run from cache.
 * `uv run fxrisk fetch --refresh` re-downloads everything; `FXRISK_OFFLINE=1` forbids
   network access (CI sets it).
 * `fxrisk quality` exits 1 if any check fails and writes the reasons to `reports/alerts.md`.
+* The DuckDB file `data/fxrisk.duckdb` is rebuilt from the cache and can be opened with
+  any DuckDB client to inspect every intermediate table and view.
 
 ## Data sources
 
@@ -93,8 +113,8 @@ sum to 200%), from the BIS Triennial Central Bank Survey:
 |---|---|---|---|---|---|---|---|---|---|
 | 28.9 | 16.8 | 10.2 | 6.4 | ~6 | ~6 | ~2 | 1.6* | 1.5* | 0.9* |
 
-2025 survey (April 2025 turnover, preliminary release of 30 Sep 2026 reporting) except
-`*` = 2022 survey, Table 3. Used only to motivate the list; nothing is built on them.
+2025 survey (April 2025 turnover) except `*` = 2022 survey, Table 3. Used only to
+motivate the list; nothing is built on them.
 
 ## Conventions (the two that matter)
 
@@ -104,6 +124,19 @@ sum to 200%), from the BIS Triennial Central Bank Survey:
   strengthens.
 
 Both are enforced by tests and explained in `docs/methodology.md`.
+
+## The synthetic business in one paragraph
+
+Four entities (US, Canada, euro area, UK) collect card payments in the ten currencies
+plus USD, about USD 75m a day in total. Each sale creates a receivable that settles after
+one to five business days, merchants are paid daily (US, Canada) or weekly (euro area,
+UK), partly in the collected currency and partly after conversion, refunds come back
+over the following weeks, retained fees are swept monthly, and the US parent funds the
+subsidiaries with quarterly working-capital loans. The net open position in each currency
+(receivables plus cash, minus merchant payables, plus intercompany) is the exposure:
+USD 7-95m per currency on average, gross up to USD 1bn in EUR. A placeholder legacy
+programme hedges half of last month's average net exposure; milestone 3 replaces it with
+the optimizer. Details in `docs/methodology.md` sections 3-4 and ADR-0008.
 
 ## Limitations and non-goals
 
@@ -116,19 +149,23 @@ Both are enforced by tests and explained in `docs/methodology.md`.
 * **Forwards only; no options, no cross-currency basis, no NDF basis** (hedging primer,
   section 5).
 * **Fixing-time mismatch** between sources is tolerated, not modelled.
+* **Weekday calendar**, no holidays, for settlement and payouts (backlog B9).
+* **Coverage tests at one day only.** Ten- and 21-day numbers are reported with a
+  caveat; overlapping windows break the tests' independence assumption (ADR-0010).
 * **Not a product:** no scheduler is executed in CI, no database beyond a local DuckDB
   file, no access control.
 
 ## Repository map
 
 ```
-fx_treasury_risk/   package (data/, flows/, exposure/, forecast/, risk/, backtest/, hedge/, report/, cli.py)
+fx_treasury_risk/   package (data/, flows/, exposure/, risk/, backtest/, hedge/, forecast/, report/, cli.py)
+config/             flows.yaml - the stylized business
 sql/                all SQL, numbered in execution order
 data/cache/         committed source data + manifest.json
 tests/              pytest suite; tests/fixtures holds trimmed real API responses
 docs/               methodology, hedging primer, backlog, decisions/ (ADRs)
-reports/            generated outputs (quality report, alerts; later figures and the decision report)
-.github/workflows/  ci.yml (lint, types, tests, quality from cache)
+reports/            generated outputs (quality, alerts, risk tables, backtest verdicts; later figures and the decision report)
+.github/workflows/  ci.yml (lint, types, tests, every stage from cache)
 ```
 
 ## Licence

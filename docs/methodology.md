@@ -103,12 +103,123 @@ EWMA sigma, WARN only, for human review) and a plausibility range on rates. Fail
 
 ## 3. Synthetic flows *(milestone 2)*
 
+Configuration: `config/flows.yaml`. Generator: `fx_treasury_risk/flows/generator.py`.
+Design rationale: ADR-0008.
+
+### 3.1 What is generated
+
+For each (entity, currency) pair with a configured daily volume, and for every calendar
+day, the generator produces positive amounts by flow type:
+
+| Flow type | When | Amount (A = authorized amount, t = take rate, s = same-currency payout share) |
+|---|---|---|
+| `auth` | day of sale | A = volume x growth x weekly x annual x regime x noise |
+| `payable_accrual` | day of sale | A (1-t) s |
+| `settlement` | + L business days (L from a per-currency distribution) | A |
+| `payout_same` | next payout date (daily or Friday) | settlements (1-t) s, net of claw-backs |
+| `payout_converted` | same | settlements (1-t)(1-s), net of claw-backs |
+| `refund_paid` | + R calendar days (truncated geometric, mean 12) | A x refund rate |
+| `refund_clawback` | same | refund (1-t) s |
+| `fee_sweep` | last business day of month | t x (settlements - refunds) |
+| `interco_receivable` / `interco_payable` | first business day of each quarter | growth top-up of the parent's loan |
+
+Noise is lognormal AR(1) with mean one. Growth is an 8% annual trend. Regimes multiply
+volume over a date range (the 2020 collapse and rebound are configured).
+
+### 3.2 What is stylized and why
+
+* **Volumes, take rate, refund rate, lags, payout schedules, same-currency shares** are
+  round numbers chosen for a treasury-sized problem (group ~USD 75m/day). They are not
+  estimates of anything.
+* **Annual seasonality is the one calibrated input**: twelve monthly factors from the
+  NSA/SA ratio of US retail sales (FRED) for the US, euro-area and UK entities and of
+  Canadian retail sales (StatCan) for the Canadian entity. Monthly retail data cannot
+  identify a weekly pattern, so the weekend-heavy weekly profile is assumed.
+* **Weekday calendar** for settlement and payouts; holidays are ignored.
+* **Intercompany loans** are spent on payouts at the subsidiary, so they net to zero at
+  group level and appear only in gross exposure.
+* **No USD exposure at group level**: USD is the reporting currency. USD flows at non-US
+  entities are generated for completeness and excluded from group FX exposure.
+
+### 3.3 Tests
+
+`tests/test_flows.py` checks, per pair, that settlements equal authorizations, payouts
+equal (1-t) of settlements net of refunds split by the configured share, fees net of
+refunded fees are swept, every component returns to a bounded level (no drift with
+cumulative volume), the weekly and annual profiles are recovered from the output, the
+level matches the configured volume, and the generator is deterministic and
+pair-independent.
+
 ## 4. Exposure aggregation *(milestone 2)*
 
+All aggregation is SQL: `sql/060_flows.sql` to `sql/090_exposure_group.sql`.
+
+### 4.1 From flows to positions
+
+`flow_type_map` assigns each flow type to a component and a sign. A settlement, for
+example, moves two components (`in_flight` -1, `balance` +1), which the join to the
+mapping table fans out into two rows. Positions are running sums of signed flows per
+(entity, currency, component) over a complete calendar-day grid, so days without flows
+carry the previous position.
+
+| Component | Meaning | Sign |
+|---|---|---|
+| `in_flight` | receivables authorized but not settled | >= 0 |
+| `balance` | cash held in the currency | >= 0 |
+| `payable` | owed to merchants paid in the currency | <= 0 |
+| `intercompany` | parent loan: receivable at US, payable at the subsidiary | +/- |
+| `net` | sum of the four | |
+| `gross` | sum of absolute values | |
+
+### 4.2 Translation and the waterfall
+
+`exposure_daily_usd` translates at the latest NY fixing on or before the exposure date
+(an `ASOF JOIN`; a weekend uses Friday's rate). `exposure_waterfall` shows the same
+number three ways: gross, net, and net of active hedges, per (date, entity, currency),
+and `exposure_waterfall_by_ccy` sums entities for the group view.
+
+### 4.3 Existing hedges
+
+`hedge_positions` is the table the optimizer (milestone 3) writes. Until then
+`hedges_legacy` supplies a placeholder programme: on the first of each month, sell
+forward 50% of last month's average net exposure in each non-USD currency for one month.
+`hedges_all` prefers optimizer rows where they exist.
+
+### 4.4 Risk input
+
+`exposure_group_fx` is group net exposure by currency on the FX calendar, in currency
+units and USD, with and without hedges. The risk engine reads only this table.
+
 ## 5. Risk engine *(milestone 2)*
+
+Code: `fx_treasury_risk/risk/`. Choices: ADR-0009.
+
+* **Returns:** daily log returns of `usd_per_fcy`; returns over a forward-filled cell are
+  dropped rather than recorded as zero.
+* **P&L:** `sum_c E_c (exp(r_c) - 1)` with `E_c` the USD exposure (positive = long).
+  Loss is minus P&L; VaR and ES are positive USD amounts.
+* **Covariance:** sample (1,000 days), EWMA (0.94 and 0.97), Ledoit-Wolf identity-target
+  shrinkage (1,000 days).
+* **VaR/ES:** historical simulation on overlapping h-day returns; normal and Student-t
+  (variance-matched, `nu` fitted by MLE) scaled by `sqrt(h)`; Monte Carlo with a t
+  copula over EWMA correlations, t marginals and `h` compounded daily steps.
+* **Stress:** historical replays (CHF 2015, Brexit 2016, March 2020, USD surge 2022,
+  taper tantrum 2013) and hypothetical shocks with Gaussian conditional propagation to
+  unnamed currencies, reported with and without propagation.
+* **Output:** `risk_results` and `stress_results` in DuckDB; `reports/risk_tables.md`.
 
 ## 6. Exposure forecasting *(milestone 3)*
 
 ## 7. Hedge optimization *(milestone 3)*
 
 ## 8. Backtesting *(milestones 2-3)*
+
+### 8.1 VaR and ES coverage *(milestone 2)*
+
+Code: `fx_treasury_risk/backtest/`. Design: ADR-0010. Daily one-day forecasts from
+2015-01-02 along the actual exposure path for historical simulation, normal (sample and
+EWMA covariance) and Student-t (EWMA) models. Tests: Kupiec, Christoffersen, conditional
+coverage, Basel traffic light, Acerbi-Szekely Z1 and Z2 with simulated p-values. Output:
+`var_backtest_results` in DuckDB; `reports/var_backtest.md`.
+
+### 8.2 Hedge-policy backtest *(milestone 3)*
