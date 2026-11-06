@@ -28,6 +28,7 @@ from rich.table import Table
 from fx_treasury_risk import config, db
 from fx_treasury_risk.data.cache import SeriesCache
 from fx_treasury_risk.data.registry import ALL_SERIES, SeriesSpec
+from fx_treasury_risk.report.tables import df_to_markdown as _df_to_markdown
 
 log = logging.getLogger(__name__)
 
@@ -482,19 +483,3 @@ def run_quality(
         (paths.reports_dir / "quality_report.md").write_text(report.to_markdown(), encoding="utf-8")
         (paths.reports_dir / "alerts.md").write_text(report.to_alerts_markdown(), encoding="utf-8")
     return report
-
-
-def _df_to_markdown(df: pd.DataFrame) -> str:
-    cols = [str(c) for c in df.columns]
-    lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
-    for row in df.itertuples(index=False):
-        lines.append("| " + " | ".join(_fmt(v) for v in row) + " |")
-    return "\n".join(lines)
-
-
-def _fmt(v: object) -> str:
-    if isinstance(v, float):
-        return f"{v:.4g}" if abs(v) < 1e-3 and v != 0 else f"{v:,.2f}".rstrip("0").rstrip(".")
-    if isinstance(v, (pd.Timestamp, datetime, date)):
-        return pd.Timestamp(v).date().isoformat()
-    return str(v)
