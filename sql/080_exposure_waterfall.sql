@@ -45,13 +45,46 @@ LEFT JOIN active_hedges AS a USING (exposure_date, entity, ccy);
 CREATE OR REPLACE VIEW exposure_waterfall_by_ccy AS
 -- Group view: one row per (date, ccy), entities summed. USD is excluded because it is
 -- the reporting currency and carries no translation risk.
+--
+-- Hedges dealt at group level (entity = 'GROUP', written by the optimizer) do not belong
+-- to any entity row above, so they are added here, translated at the same as-of rate.
+WITH by_entity AS (
+    SELECT
+        exposure_date,
+        ccy,
+        max(usd_per_fcy)        AS usd_per_fcy,
+        sum(gross_usd)          AS gross_usd,
+        sum(net_usd)            AS net_usd,
+        sum(hedge_usd)          AS hedge_usd,
+        sum(net_of_hedges_usd)  AS net_of_hedges_usd,
+        sum(net_fcy)            AS net_fcy,
+        sum(hedge_fcy)          AS hedge_fcy
+    FROM exposure_waterfall
+    WHERE ccy <> 'USD'
+    GROUP BY ALL
+),
+group_hedges AS (
+    SELECT
+        e.exposure_date,
+        e.ccy,
+        sum(h.notional_fcy) AS hedge_fcy
+    FROM (SELECT DISTINCT exposure_date, ccy FROM exposure_waterfall WHERE ccy <> 'USD') AS e
+    JOIN hedges_all AS h
+      ON h.entity = 'GROUP'
+     AND h.ccy    = e.ccy
+     AND e.exposure_date >= h.trade_date
+     AND e.exposure_date <  h.maturity_date
+    GROUP BY ALL
+)
 SELECT
-    exposure_date,
-    ccy,
-    sum(gross_usd)          AS gross_usd,
-    sum(net_usd)            AS net_usd,
-    sum(hedge_usd)          AS hedge_usd,
-    sum(net_of_hedges_usd)  AS net_of_hedges_usd
-FROM exposure_waterfall
-WHERE ccy <> 'USD'
-GROUP BY ALL;
+    b.exposure_date,
+    b.ccy,
+    b.gross_usd,
+    b.net_usd,
+    b.hedge_usd + coalesce(g.hedge_fcy, 0) * b.usd_per_fcy             AS hedge_usd,
+    b.net_of_hedges_usd + coalesce(g.hedge_fcy, 0) * b.usd_per_fcy     AS net_of_hedges_usd,
+    b.net_fcy,
+    b.hedge_fcy + coalesce(g.hedge_fcy, 0)                             AS hedge_fcy,
+    b.net_fcy + b.hedge_fcy + coalesce(g.hedge_fcy, 0)                 AS net_of_hedges_fcy
+FROM by_entity AS b
+LEFT JOIN group_hedges AS g USING (exposure_date, ccy);
