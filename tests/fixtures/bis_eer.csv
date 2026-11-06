@@ -1,0 +1,13 @@
+FREQ,EER_TYPE,EER_BASKET,REF_AREA,UNIT_MEASURE,TIME_FORMAT,COLLECTION,TITLE_TS,TIME_PERIOD,OBS_VALUE,OBS_STATUS,OBS_CONF,OBS_PRE_BREAK
+D,N,B,GB,882,,A,United Kingdom - Nominal - Broad (64 economies),2024-10-01,112.56,A,F,
+D,N,B,GB,882,,A,United Kingdom - Nominal - Broad (64 economies),2024-10-02,112.44,A,F,
+D,N,B,GB,882,,A,United Kingdom - Nominal - Broad (64 economies),2024-10-03,111.12,A,F,
+D,N,B,GB,882,,A,United Kingdom - Nominal - Broad (64 economies),2024-10-04,111.82,A,F,
+D,N,B,US,882,,A,United States - Nominal - Broad (64 economies),2024-10-01,104.46,A,F,
+D,N,B,US,882,,A,United States - Nominal - Broad (64 economies),2024-10-02,104.44,A,F,
+D,N,B,US,882,,A,United States - Nominal - Broad (64 economies),2024-10-03,104.81,A,F,
+D,N,B,US,882,,A,United States - Nominal - Broad (64 economies),2024-10-04,104.73,A,F,
+D,N,B,XM,882,,A,Euro area - Nominal - Broad (64 economies),2024-10-01,106.13,A,F,
+D,N,B,XM,882,,A,Euro area - Nominal - Broad (64 economies),2024-10-02,106.17,A,F,
+D,N,B,XM,882,,A,Euro area - Nominal - Broad (64 economies),2024-10-03,106.29,A,F,
+D,N,B,XM,882,,A,Euro area - Nominal - Broad (64 economies),2024-10-04,106.25,A,F,

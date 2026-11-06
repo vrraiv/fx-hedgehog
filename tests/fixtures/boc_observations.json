@@ -1,0 +1,271 @@
+{
+    "terms": {
+        "url": "https://www.bankofcanada.ca/terms/"
+    },
+    "seriesDetail": {
+        "FXAUDCAD": {
+            "label": "AUD/CAD",
+            "description": "Daily average exchange rate of the Australian dollar in Canadian dollars.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "daily",
+            "metadata": {
+                "unit": "Canadian dollars per Australian dollar",
+                "frequency": "Business daily"
+            }
+        },
+        "FXBRLCAD": {
+            "label": "BRL/CAD",
+            "description": "Daily average exchange rate of the Brazilian real in Canadian dollars.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "daily",
+            "metadata": {
+                "unit": "Canadian dollars per Brazilian real",
+                "frequency": "Business daily"
+            }
+        },
+        "FXCHFCAD": {
+            "label": "CHF/CAD",
+            "description": "Daily average exchange rate of the Swiss franc in Canadian dollars.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "daily",
+            "metadata": {
+                "unit": "Canadian dollars per Swiss franc",
+                "frequency": "Business daily"
+            }
+        },
+        "FXEURCAD": {
+            "label": "EUR/CAD",
+            "description": "Daily average exchange rate of the euro in Canadian dollars.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "daily",
+            "metadata": {
+                "unit": "Canadian dollars per euro",
+                "frequency": "Business daily"
+            }
+        },
+        "FXGBPCAD": {
+            "label": "GBP/CAD",
+            "description": "Daily average exchange rate of the UK pound sterling in Canadian dollars.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "daily",
+            "metadata": {
+                "unit": "Canadian dollars per UK pound sterling",
+                "frequency": "Business daily"
+            }
+        },
+        "FXINRCAD": {
+            "label": "INR/CAD",
+            "description": "Daily average exchange rate of the Indian rupee in Canadian dollars.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "daily",
+            "metadata": {
+                "unit": "Canadian dollars per Indian rupee",
+                "frequency": "Business daily"
+            }
+        },
+        "FXJPYCAD": {
+            "label": "JPY/CAD",
+            "description": "Daily average exchange rate of the Japanese yen in Canadian dollars.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "daily",
+            "metadata": {
+                "unit": "Canadian dollars per Japanese yen",
+                "frequency": "Business daily"
+            }
+        },
+        "FXMXNCAD": {
+            "label": "MXN/CAD",
+            "description": "Daily average exchange rate of the Mexican peso in Canadian dollars.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "daily",
+            "metadata": {
+                "unit": "Canadian dollars per Mexican peso",
+                "frequency": "Business daily"
+            }
+        },
+        "FXSGDCAD": {
+            "label": "SGD/CAD",
+            "description": "Daily average exchange rate of the Singapore dollar in Canadian dollars.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "daily",
+            "metadata": {
+                "unit": "Canadian dollars per Singapore dollar",
+                "frequency": "Business daily"
+            }
+        },
+        "FXUSDCAD": {
+            "label": "USD/CAD",
+            "description": "Daily average exchange rate of the US dollar in Canadian dollars.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "daily",
+            "metadata": {
+                "unit": "Canadian dollars per US dollar",
+                "frequency": "Business daily"
+            }
+        }
+    },
+    "observations": [
+        {
+            "d": "2024-10-01",
+            "FXEURCAD": {
+                "v": "1.4947"
+            },
+            "FXJPYCAD": {
+                "v": "0.009400"
+            },
+            "FXMXNCAD": {
+                "v": "0.06857"
+            },
+            "FXINRCAD": {
+                "v": "0.01609"
+            },
+            "FXSGDCAD": {
+                "v": "1.0485"
+            },
+            "FXCHFCAD": {
+                "v": "1.5955"
+            },
+            "FXGBPCAD": {
+                "v": "1.7942"
+            },
+            "FXBRLCAD": {
+                "v": "0.2475"
+            },
+            "FXUSDCAD": {
+                "v": "1.3504"
+            },
+            "FXAUDCAD": {
+                "v": "0.9303"
+            }
+        },
+        {
+            "d": "2024-10-02",
+            "FXCHFCAD": {
+                "v": "1.5878"
+            },
+            "FXAUDCAD": {
+                "v": "0.9293"
+            },
+            "FXGBPCAD": {
+                "v": "1.7902"
+            },
+            "FXSGDCAD": {
+                "v": "1.0447"
+            },
+            "FXMXNCAD": {
+                "v": "0.06940"
+            },
+            "FXUSDCAD": {
+                "v": "1.3491"
+            },
+            "FXJPYCAD": {
+                "v": "0.009240"
+            },
+            "FXINRCAD": {
+                "v": "0.01607"
+            },
+            "FXBRLCAD": {
+                "v": "0.2481"
+            },
+            "FXEURCAD": {
+                "v": "1.4905"
+            }
+        },
+        {
+            "d": "2024-10-03",
+            "FXJPYCAD": {
+                "v": "0.009230"
+            },
+            "FXUSDCAD": {
+                "v": "1.3540"
+            },
+            "FXAUDCAD": {
+                "v": "0.9268"
+            },
+            "FXGBPCAD": {
+                "v": "1.7761"
+            },
+            "FXBRLCAD": {
+                "v": "0.2470"
+            },
+            "FXCHFCAD": {
+                "v": "1.5886"
+            },
+            "FXSGDCAD": {
+                "v": "1.0438"
+            },
+            "FXEURCAD": {
+                "v": "1.4933"
+            },
+            "FXMXNCAD": {
+                "v": "0.06957"
+            },
+            "FXINRCAD": {
+                "v": "0.01612"
+            }
+        },
+        {
+            "d": "2024-10-04",
+            "FXSGDCAD": {
+                "v": "1.0407"
+            },
+            "FXBRLCAD": {
+                "v": "0.2483"
+            },
+            "FXEURCAD": {
+                "v": "1.4895"
+            },
+            "FXCHFCAD": {
+                "v": "1.5813"
+            },
+            "FXMXNCAD": {
+                "v": "0.07060"
+            },
+            "FXGBPCAD": {
+                "v": "1.7805"
+            },
+            "FXAUDCAD": {
+                "v": "0.9233"
+            },
+            "FXJPYCAD": {
+                "v": "0.009140"
+            },
+            "FXINRCAD": {
+                "v": "0.01616"
+            },
+            "FXUSDCAD": {
+                "v": "1.3577"
+            }
+        }
+    ]
+}
