@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets / local env
+.env
+
+# Local DuckDB database is rebuilt from data/cache on every run
+data/*.duckdb
+data/*.duckdb.wal
+
+# Notebook noise
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# local env files (API keys)
+.env*
