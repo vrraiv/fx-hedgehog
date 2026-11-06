@@ -1,0 +1,47 @@
+# Hedge policy configuration (milestone 3). Round numbers, all stylized.
+
+# Risk budget: the 21-day 99% Expected Shortfall of the hedged book may not exceed this.
+# Fixed in USD because that is how a treasury risk appetite is written; as the synthetic
+# business grows (8% a year) the budget binds progressively harder.
+es_budget_usd: 4000000
+horizon_days: 21
+confidence: 0.99
+
+# Risk model used inside the optimizer and for the ex-ante ES check. The Student-t with
+# EWMA(0.94) covariance is the only model that passed every 99% coverage test (ADR-0010).
+risk_model:
+  method: parametric_t
+  lam: 0.94
+  window: 1000
+
+# Instruments: one-month outright forwards, rolled at each monthly rebalance.
+forward_tenor_days: 30
+
+# One-way bid-ask spread paid on the full notional of every new forward, in basis points
+# of notional. Stylized order-of-magnitude figures for a corporate dealing with a bank.
+bid_ask_bp:
+  EUR: 0.5
+  GBP: 0.7
+  CAD: 0.7
+  JPY: 0.6
+  AUD: 0.9
+  CHF: 0.8
+  MXN: 3.0
+  BRL: 8.0
+  INR: 6.0
+  SGD: 1.5
+
+# Hedge notionals below this USD amount are rounded to zero (minimum ticket).
+min_ticket_usd: 250000
+
+# Turnover penalty, basis points of the notional *changed* since last month, added to the
+# optimizer's objective only (not a realized cost). With a hard ES constraint and linear
+# costs the optimum is bang-bang; this regulariser stops ratios flipping between 0 and 1
+# on tiny carry differences when the budget is slack.
+turnover_penalty_bp: 2.0
+
+# Walk-forward policy backtest.
+oos_start: 2015-01-01
+rebalance: monthly          # first NY business day of each month
+exposure_input: forecast    # 'forecast' = 21-day-ahead median from the forecast model; 'actual' = exposure on the rebalance date
+policies: [unhedged, legacy_50, full_hedge, optimizer]
