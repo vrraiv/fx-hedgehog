@@ -89,7 +89,26 @@ def offline() -> bool:
     return _truthy(os.environ.get("FXRISK_OFFLINE"))
 
 
+def load_dotenv(path: Path = REPO_ROOT / ".env") -> None:
+    """Read ``KEY=VALUE`` lines from a git-ignored ``.env`` into the environment.
+
+    Existing environment variables win; the file never overrides them. Blank lines and
+    ``#`` comments are skipped. Deliberately minimal so no dependency is needed.
+    """
+    if not path.exists():
+        return
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key, value = key.strip(), value.strip().strip("'\"")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
 def fred_api_key() -> str | None:
-    """FRED API key from the environment, or None (the loader then uses the keyless CSV)."""
+    """FRED API key from the environment or ``.env``, or None (keyless CSV is used)."""
+    load_dotenv()
     key = os.environ.get("FRED_API_KEY", "").strip()
     return key or None

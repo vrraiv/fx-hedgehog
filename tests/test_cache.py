@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import numpy as np
@@ -47,3 +48,19 @@ def test_read_long_stacks_all_series(tmp_path: Path) -> None:
     assert len(long) == 4
     assert set(long["source"]) == {"fred", "boc"}
     assert list(long.columns) == ["source", "series_id", "date", "value"]
+
+
+def test_dotenv_is_read_but_never_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fx_treasury_risk import config
+
+    env = tmp_path / ".env"
+    env.write_text("# comment\nFRED_API_KEY='abc123'\nOTHER=x\n", encoding="utf-8")
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.delenv("OTHER", raising=False)
+    config.load_dotenv(env)
+    assert os.environ["FRED_API_KEY"] == "abc123" and os.environ["OTHER"] == "x"
+    monkeypatch.setenv("FRED_API_KEY", "from-shell")
+    config.load_dotenv(env)
+    assert os.environ["FRED_API_KEY"] == "from-shell"
