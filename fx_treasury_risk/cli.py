@@ -4,8 +4,7 @@ Stages run in this order and each one reads only what earlier stages wrote::
 
     fetch -> quality -> flows -> exposure -> forecast -> risk -> hedge -> backtest -> report
 
-``fxrisk all`` runs the stages that exist so far. Exit codes: 0 success, 1 quality failure,
-2 stage not yet implemented, 3 unexpected error.
+``fxrisk all`` runs them all. Exit codes: 0 success, 1 quality failure, 3 unexpected error.
 """
 
 from __future__ import annotations
@@ -34,7 +33,6 @@ app = typer.Typer(
 console = Console()
 
 EXIT_QUALITY_FAILED = 1
-EXIT_NOT_IMPLEMENTED = 2
 EXIT_ERROR = 3
 
 
@@ -112,14 +110,6 @@ def quality(
         console.print("[red]quality checks FAILED - see reports/alerts.md[/red]")
         raise typer.Exit(code=EXIT_QUALITY_FAILED)
     console.print("[green]quality checks passed[/green]")
-
-
-def _not_yet(stage: str, milestone: int) -> None:
-    console.print(
-        f"[yellow]`fxrisk {stage}` is planned for milestone {milestone}; "
-        "nothing to do yet.[/yellow]"
-    )
-    raise typer.Exit(code=EXIT_NOT_IMPLEMENTED)
 
 
 @app.command()
@@ -269,13 +259,17 @@ def backtest(
 
 @app.command()
 def report() -> None:
-    """Render the decision report (milestone 4)."""
-    _not_yet("report", 4)
+    """Assemble reports/decision_report.md from what the earlier stages persisted."""
+    from fx_treasury_risk.report.decision import run_report
+
+    paths = config.Paths.from_env()
+    out = run_report(paths)
+    console.print(f"decision report: {out}")
 
 
 @app.command(name="all")
 def run_all() -> None:
-    """Run every implemented stage in order."""
+    """Run every stage in order."""
     fetch(source=None, refresh=False)
     quality(strict=False)
     flows()
@@ -284,6 +278,7 @@ def run_all() -> None:
     hedge()
     backtest()
     risk()
+    report()
 
 
 if __name__ == "__main__":  # pragma: no cover

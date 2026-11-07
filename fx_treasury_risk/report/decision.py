@@ -1,0 +1,719 @@
+"""``fxrisk report``: the decision report, assembled from what earlier stages persisted.
+
+The report computes nothing. Every table is read from the DuckDB tables the ``forecast``,
+``hedge``, ``backtest`` and ``risk`` stages wrote, every figure already exists in
+``reports/figures`` (two more are drawn here from exposure views), and the prose is
+templated around those numbers so that a refreshed data set rewrites the argument with the
+new figures in it. ``load_report_data`` gathers, ``render_sections`` writes, and the two are
+separated so the renderer can be tested on small hand-made frames.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import SupportsFloat, cast
+
+import duckdb
+import pandas as pd
+
+from fx_treasury_risk import __version__, config, db
+from fx_treasury_risk.hedge.config import HedgeConfig, load_hedge_config
+from fx_treasury_risk.report import plots
+from fx_treasury_risk.report.tables import df_to_markdown, fmt, write_markdown
+
+log = logging.getLogger(__name__)
+
+REPORT_NAME = "decision_report.md"
+STRESS_MONTHS = ("2020-03", "2020-04", "2022-09", "2022-10")
+SHOW_HORIZONS = (1, 5, 10, 21, 42, 63)
+POLICY_LABELS = {
+    "unhedged": "unhedged",
+    "legacy_50": "legacy 50%",
+    "full_hedge": "full hedge",
+    "optimizer": "optimizer",
+}
+
+
+@dataclass
+class ReportData:
+    """Everything the report prints, as frames in the units the tables show (USD m)."""
+
+    as_of: pd.Timestamp
+    hcfg: HedgeConfig
+    retrieved_on: str
+    quality_overall: str
+    quality_summary: pd.DataFrame
+    waterfall: pd.DataFrame  # report_waterfall_latest incl. TOTAL row
+    entity_latest: pd.DataFrame
+    exposure_monthly: pd.DataFrame
+    forecast_by_horizon: pd.DataFrame  # calendar_ar1 only
+    forecast_latest: pd.DataFrame  # 21-day median and 95% band by ccy
+    var_backtest: pd.DataFrame
+    risk_21d: pd.DataFrame  # ES at the policy horizon/confidence, all methods, both bases
+    stress: pd.DataFrame
+    hedge_headline: pd.Series
+    recommendation: pd.DataFrame
+    reference: pd.DataFrame
+    frontier: pd.DataFrame
+    policy_summary: pd.DataFrame
+    policy_months: pd.DataFrame  # the four stress months, all policies
+    policy_by_year: pd.DataFrame
+    ratios_mean: pd.Series
+    figures: dict[str, Path] = field(default_factory=dict)
+
+
+# ----------------------------------------------------------------------------- loading
+
+
+def _read(con: duckdb.DuckDBPyConnection, name: str) -> pd.DataFrame:
+    return con.execute(f"SELECT * FROM {name}").df()
+
+
+def _parse_quality(path: Path) -> tuple[str, pd.DataFrame]:
+    """Overall status and the summary table of ``reports/quality_report.md``.
+
+    The quality stage writes markdown, not a table, so the report re-reads that file
+    rather than re-running the checks; the summary table is the block before ``## Details``.
+    """
+    if not path.exists():
+        return "not run", pd.DataFrame(columns=["check", "status", "summary"])
+    text = path.read_text(encoding="utf-8")
+    m = re.search(r"overall \*\*(\w+)\*\*", text)
+    overall = m.group(1) if m else "unknown"
+    rows = []
+    for line in text.split("## Details")[0].splitlines():
+        if line.startswith("| ") and not line.startswith("| check") and "---" not in line:
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if len(cells) == 3:
+                rows.append(dict(zip(("check", "status", "summary"), cells, strict=True)))
+    return overall, pd.DataFrame(rows)
+
+
+def _retrieved_on(paths: config.Paths) -> str:
+    manifest = paths.cache_dir / "manifest.json"
+    if not manifest.exists():
+        return "unknown"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    dates = sorted({str(v["retrieved_at"])[:10] for v in data.get("series", {}).values()})
+    if not dates:
+        return "unknown"
+    return dates[-1] if len(dates) == 1 else f"{dates[0]} to {dates[-1]}"
+
+
+def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> ReportData:
+    """Read every input of the report from DuckDB and the earlier stages' files."""
+    hcfg = hcfg or load_hedge_config()
+    con = db.connect(paths)
+    try:
+        for t in ("hedge_headline", "policy_backtest_summary", "forecast_eval", "risk_results"):
+            if not _table_exists(con, t):
+                raise RuntimeError(f"table {t} missing: run the earlier stages (`fxrisk all`)")
+        db.execute_file(con, "110_report_views")
+
+        head = _read(con, "hedge_headline").iloc[0]
+        as_of = pd.Timestamp(head["as_of"])
+
+        waterfall = _read(con, "report_waterfall_latest").drop(columns="sort_key")
+        entity_latest = _read(con, "report_entity_latest")
+        exposure_monthly = _read(con, "report_exposure_monthly")
+
+        fe = _read(con, "forecast_eval")
+        fe = fe[fe["model"] == "calendar_ar1"]
+        by_h = (
+            fe.groupby("horizon")[
+                ["pinball_pct", "mape_median_pct", "coverage_50", "coverage_80", "coverage_95"]
+            ]
+            .mean()
+            .reset_index()
+        )
+        skill = fe.groupby("horizon")["skill_vs_naive"].mean().reset_index()
+        forecast_by_horizon = by_h.merge(skill, on="horizon")
+        forecast_by_horizon = forecast_by_horizon[
+            forecast_by_horizon["horizon"].isin([*SHOW_HORIZONS, hcfg.horizon_days])
+        ].reset_index(drop=True)
+
+        fl = _read(con, "forecast_latest")
+        fl = fl[(fl["model"] == "calendar_ar1") & (fl["horizon"] == hcfg.horizon_days)]
+        forecast_latest = fl[["ccy", "target_date", "q025", "q500", "q975"]].rename(
+            columns={"q025": "2.5%", "q500": "median", "q975": "97.5%"}
+        )
+
+        var_backtest = _read(con, "var_backtest_results")
+        rr = _read(con, "risk_results")
+        rr = rr[
+            (rr["horizon_days"] == hcfg.horizon_days)
+            & (rr["confidence"].sub(hcfg.confidence).abs() < 1e-9)
+        ]
+        risk_21d = (
+            rr.assign(label=rr["method"] + " / " + rr["cov_method"])
+            .pivot_table(index="label", columns="basis", values="es_usd", aggfunc="first")
+            .div(1e6)
+            .reset_index()
+        )
+        stress = _read(con, "stress_results")
+        stress = (
+            stress.pivot_table(
+                index=["scenario", "kind", "largest_move", "propagated"],
+                columns="basis",
+                values="pnl_usd",
+                aggfunc="first",
+                sort=False,
+            )
+            .div(1e6)
+            .reset_index()
+        )
+
+        recommendation = _read(con, "hedge_recommendation")
+        reference = _read(con, "hedge_reference")
+        frontier = _read(con, "hedge_frontier")
+
+        policy_summary = _read(con, "policy_backtest_summary")
+        pm = _read(con, "policy_backtest_monthly")
+        pm["month"] = pd.DatetimeIndex(pm["rebalance"]).strftime("%Y-%m")
+        policy_months = pm[pm["month"].isin(STRESS_MONTHS)]
+        policy_by_year = _read(con, "policy_backtest_by_year")
+        dec = _read(con, "policy_decisions")
+        dec = dec[dec["policy"] == "optimizer"]
+        ratio_cols = [c for c in dec.columns if c.startswith("h_")]
+        ratios_mean = dec[ratio_cols].mean()
+        ratios_mean.index = pd.Index([c[2:] for c in ratio_cols])
+    finally:
+        con.close()
+
+    overall, qsum = _parse_quality(paths.reports_dir / "quality_report.md")
+    return ReportData(
+        as_of=as_of,
+        hcfg=hcfg,
+        retrieved_on=_retrieved_on(paths),
+        quality_overall=overall,
+        quality_summary=qsum,
+        waterfall=waterfall,
+        entity_latest=entity_latest,
+        exposure_monthly=exposure_monthly,
+        forecast_by_horizon=forecast_by_horizon,
+        forecast_latest=forecast_latest,
+        var_backtest=var_backtest,
+        risk_21d=risk_21d,
+        stress=stress,
+        hedge_headline=head,
+        recommendation=recommendation,
+        reference=reference,
+        frontier=frontier,
+        policy_summary=policy_summary,
+        policy_months=policy_months,
+        policy_by_year=policy_by_year,
+        ratios_mean=ratios_mean,
+    )
+
+
+def _table_exists(con: duckdb.DuckDBPyConnection, name: str) -> bool:
+    return bool(
+        con.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_name = ?", [name]
+        ).fetchall()
+    )
+
+
+# ---------------------------------------------------------------------------- rendering
+
+
+def _num(x: object) -> float:
+    """Scalar from a frame cell; pandas types cells as ``object`` or a wide union."""
+    return float(cast(SupportsFloat, x))
+
+
+def _m(x: object) -> str:
+    """USD millions with one decimal, sign kept."""
+    return f"{_num(x) / 1e6:,.1f}"
+
+
+def _pct(x: object) -> str:
+    return f"{100 * _num(x):.0f}%"
+
+
+def _ratio_groups(rec: pd.DataFrame) -> tuple[list[str], list[str], list[str]]:
+    full = [str(r.ccy) for r in rec.itertuples() if _num(r.hedge_ratio) >= 0.995]
+    none = [str(r.ccy) for r in rec.itertuples() if _num(r.hedge_ratio) <= 0.005]
+    partial = [
+        f"{r.ccy} {_pct(r.hedge_ratio)}"
+        for r in rec.itertuples()
+        if 0.005 < _num(r.hedge_ratio) < 0.995
+    ]
+    return full, partial, none
+
+
+def _policy_row(summary: pd.DataFrame, policy: str) -> pd.Series:
+    row = summary[summary["policy"] == policy]
+    if row.empty:
+        raise KeyError(f"policy {policy} missing from the backtest summary")
+    return row.iloc[0]
+
+
+def _fig(figures: dict[str, Path], key: str, alt: str) -> str:
+    path = figures.get(key)
+    return f"![{alt}](figures/{path.name})" if path else f"*(figure {key} not generated)*"
+
+
+def headline_answer(d: ReportData) -> str:
+    """The primary question's answer in one paragraph, every number from the data."""
+    h = d.hedge_headline
+    full, partial, none = _ratio_groups(d.recommendation)
+    carry = -float(h["carry_per_year_usd"])  # positive = the programme earns carry
+    spread = float(h["spread_per_year_usd"])
+    opt = _policy_row(d.policy_summary, "optimizer")
+    unh = _policy_row(d.policy_summary, "unhedged")
+    fh = _policy_row(d.policy_summary, "full_hedge")
+    parts = []
+    if full:
+        parts.append(f"hedge {', '.join(full)} in full")
+    if partial:
+        parts.append(", ".join(partial))
+    if none:
+        parts.append(f"leave {', '.join(none)} unhedged")
+    carry_clause = (
+        f"earns about USD {carry / 1e6:.1f}m a year of carry"
+        if carry > 0
+        else f"costs about USD {-carry / 1e6:.1f}m a year of carry"
+    )
+    return (
+        f"**With a {d.hcfg.horizon_days}-day {d.hcfg.confidence:.0%} Expected Shortfall budget "
+        f"of USD {float(h['budget_usd']) / 1e6:.0f}m, {'; '.join(parts)}.** That programme "
+        f"{carry_clause} against USD {spread / 1e6:.1f}m of bid-ask spread, and cuts the ES "
+        f"of the forecast book from USD {_m(h['unhedged_es_usd'])}m to USD "
+        f"{_m(h['residual_es_usd'])}m. Out of sample from {d.hcfg.oos_start.year} with a "
+        f"monthly rebalance ({int(opt['n_months'])} months), the policy's annualized P&L "
+        f"volatility is USD {_m(opt['daily_vol_annualized_usd'])}m against "
+        f"{_m(unh['daily_vol_annualized_usd'])}m unhedged and "
+        f"{_m(fh['daily_vol_annualized_usd'])}m for a full hedge; its total P&L is USD "
+        f"{_m(opt['total_pnl_usd'])}m ({_m(unh['total_pnl_usd'])}m unhedged, "
+        f"{_m(fh['total_pnl_usd'])}m full hedge), its maximum drawdown USD "
+        f"{_m(opt['max_drawdown_usd'])}m ({_m(unh['max_drawdown_usd'])}m unhedged), and "
+        f"{int(opt['months_loss_gt_budget'])} of {int(opt['n_months'])} months lost more than "
+        f"the budget ({int(unh['months_loss_gt_budget'])} unhedged, "
+        f"{int(fh['months_loss_gt_budget'])} full hedge)."
+    )
+
+
+def _stress_month_table(d: ReportData) -> pd.DataFrame:
+    pm = d.policy_months.copy()
+    pm["pnl_total"] = pm["pnl_total"] / 1e6
+    tbl = pm.pivot_table(index="month", columns="policy", values="pnl_total", aggfunc="first")
+    cols = [p for p in POLICY_LABELS if p in tbl.columns]
+    tbl = tbl[cols].rename(columns=POLICY_LABELS)
+    es = (
+        pm[pm["policy"] == "optimizer"]
+        .set_index("month")["ex_ante_es_usd"]
+        .div(1e6)
+        .rename("optimizer ex-ante ES")
+    )
+    return tbl.join(es).round(2).reset_index()
+
+
+def _summary_table(d: ReportData) -> pd.DataFrame:
+    s = d.policy_summary.copy()
+    out = pd.DataFrame(
+        {
+            "policy": s["policy"].map(POLICY_LABELS).fillna(s["policy"]),
+            "P&L vol (USD m / yr)": (s["daily_vol_annualized_usd"] / 1e6).round(1),
+            "total P&L (USD m)": (s["total_pnl_usd"] / 1e6).round(1),
+            "carry + spread / yr": (
+                (s["carry_per_year_usd"] + s["spread_per_year_usd"]) / 1e6
+            ).round(1),
+            "max drawdown": (s["max_drawdown_usd"] / 1e6).round(1),
+            "worst month": (s["worst_month_usd"] / 1e6).round(1),
+            "months loss > budget": s["months_loss_gt_budget"].astype(int),
+            "share of months budget binds": s["share_months_binding"].round(2),
+        }
+    )
+    order = {p: i for i, p in enumerate(POLICY_LABELS.values())}
+    return out.sort_values("policy", key=lambda c: c.map(order)).reset_index(drop=True)
+
+
+def _by_year_table(d: ReportData) -> pd.DataFrame:
+    by = d.policy_by_year.copy()
+    by["pnl"] = by["pnl_total_usd"] / 1e6
+    tbl = by.pivot_table(index="year", columns="policy", values="pnl", aggfunc="first")
+    cols = [p for p in POLICY_LABELS if p in tbl.columns]
+    tbl = tbl[cols].rename(columns=POLICY_LABELS).round(1)
+    breaches = (
+        by[by["policy"] == "optimizer"]
+        .set_index("year")["months_loss_gt_budget"]
+        .astype(int)
+        .rename("optimizer months loss > budget")
+    )
+    return tbl.join(breaches).reset_index()
+
+
+def _recommendation_table(d: ReportData) -> pd.DataFrame:
+    r = d.recommendation.copy()
+    r["hedge_ratio"] = r["hedge_ratio"].round(2)
+    return r[
+        [
+            "ccy",
+            "exposure_usd_m",
+            "hedge_ratio",
+            "notional_usd_m",
+            "carry_pct_annual",
+            "spread_bp",
+            "rate_source",
+        ]
+    ].rename(
+        columns={
+            "exposure_usd_m": "forecast exposure (USD m)",
+            "hedge_ratio": "hedge ratio",
+            "notional_usd_m": "forward notional (USD m)",
+            "carry_pct_annual": "carry % / yr (+ = costs)",
+            "spread_bp": "spread bp",
+            "rate_source": "rate source",
+        }
+    )
+
+
+def _var_table(d: ReportData) -> pd.DataFrame:
+    v = d.var_backtest.copy()
+    out = pd.DataFrame(
+        {
+            "basis": v["basis"],
+            "method": v["method"],
+            "confidence": v["confidence"],
+            "exceptions": v["n_exceptions"].astype(int),
+            "expected": v["expected_exceptions"].round(1),
+            "Kupiec p": v["kupiec_p"].round(2),
+            "Christoffersen p": v["christoffersen_p"].round(2),
+            "traffic light": v["traffic_light"],
+            "AS Z2 p": v["z2_p"].round(2),
+            "verdict": v["verdict"],
+        }
+    )
+    return out
+
+
+def render_sections(d: ReportData) -> list[tuple[str, str]]:
+    """The report body as ``(heading, markdown)`` pairs, in reading order."""
+    h = d.hedge_headline
+    figs = d.figures
+    opt = _policy_row(d.policy_summary, "optimizer")
+    fh = _policy_row(d.policy_summary, "full_hedge")
+    cov95_21 = float(
+        d.forecast_by_horizon.loc[
+            d.forecast_by_horizon["horizon"] == d.hcfg.horizon_days, "coverage_95"
+        ].iloc[0]
+    )
+    skill_21 = float(
+        d.forecast_by_horizon.loc[
+            d.forecast_by_horizon["horizon"] == d.hcfg.horizon_days, "skill_vs_naive"
+        ].iloc[0]
+    )
+    passing = d.var_backtest[d.var_backtest["verdict"] == "PASS"]
+    pass_txt = (
+        "; ".join(f"{r.method} at {r.confidence:.0%}" for r in passing.itertuples()) or "none"
+    )
+    total = d.waterfall[d.waterfall["ccy"].str.startswith("TOTAL")].iloc[0]
+    wf = d.waterfall[~d.waterfall["ccy"].str.startswith("TOTAL")]
+    wf_date = pd.Timestamp(wf["exposure_date"].iloc[0]).date()
+    biggest = wf.iloc[wf["net_usd_m"].abs().argmax()]
+    frontier_txt = _frontier_text(d)
+    worst_opt = d.policy_months[d.policy_months["policy"] == "optimizer"].sort_values("pnl_total")
+    worst_month = worst_opt.iloc[0] if not worst_opt.empty else None
+
+    sections: list[tuple[str, str]] = []
+
+    sections.append(
+        (
+            "The question and the answer",
+            "*For a fixed Expected Shortfall budget at the 21-day horizon, what hedge ratios by "
+            "currency minimise expected hedging cost, and how would that policy have performed "
+            "out of sample from 2015 to the present, including March 2020 and 2022?*\n\n"
+            + headline_answer(d)
+            + "\n\n"
+            + df_to_markdown(_recommendation_table(d))
+            + "\n\nCarry is the annualized forward discount of the currency against USD "
+            "(positive: selling the currency forward costs money; negative: it earns). The "
+            "optimizer spends the budget where risk reduction is expensive and hedges "
+            "everything that is cheap or free to hedge: "
+            + frontier_txt[0].lower()
+            + frontier_txt[1:]
+            + " The out-of-sample evidence is in the policy section below.",
+        )
+    )
+
+    sections.append(
+        (
+            "Data and quality",
+            f"Market data: {len(d.quality_summary)} checks on {d.retrieved_on} retrievals, "
+            f"overall **{d.quality_overall}** (`reports/quality_report.md`, "
+            "`reports/alerts.md`). Sources are FRED H.10 noon rates (primary), Bank of Canada "
+            "and ECB crosses (reconciliation and fallback), BIS policy rates and effective "
+            "exchange rates, OECD short rates via FRED, and US and Canadian retail sales for "
+            "the seasonality of the synthetic flows. The flows themselves are generated from "
+            "`config/flows.yaml`; no real company's data is used.\n\n"
+            + df_to_markdown(d.quality_summary),
+        )
+    )
+
+    sections.append(
+        (
+            "Exposure waterfall",
+            f"Net open exposure by currency on {wf_date}, USD millions. *Gross* is the "
+            "sum of the absolute components (receivables in flight, cash balances, merchant "
+            "payables, intercompany loans) across the four entities; *net* nets them within a "
+            "currency across entities; *net of hedges* adds the forwards in force on that date "
+            "(the optimizer's positions where the policy has dealt, else the legacy 50% "
+            f"placeholder). Netting takes the group from USD {total['gross_usd_m']:,.0f}m gross "
+            f"to {total['net_usd_m']:,.0f}m of absolute net exposure, and hedges to "
+            f"{total['net_of_hedges_usd_m']:,.0f}m. The largest net position is "
+            f"{biggest['ccy']} at USD {biggest['net_usd_m']:,.1f}m. A negative net-of-hedges "
+            "figure on a month-end is expected: exposure in the synthetic business dips on the "
+            "last day of the month when fees are swept and weekly payouts land, while the "
+            "forward in force was sized on the forecast for the policy's 21-day target date "
+            "and runs until the next rebalance (ADR-0013; the history figure plots monthly "
+            "averages for that reason).\n\n"
+            + df_to_markdown(d.waterfall.drop(columns="exposure_date").round(1))
+            + "\n\n"
+            + _fig(figs, "waterfall", "exposure waterfall")
+            + "\n\n"
+            + _fig(figs, "history", "exposure history")
+            + "\n\nBy entity on the same date (USD m; the US parent's intercompany loans are "
+            "the subsidiaries' intercompany liabilities):\n\n"
+            + df_to_markdown(d.entity_latest.round(1)),
+        )
+    )
+
+    sections.append(
+        (
+            "Exposure forecast and its calibration",
+            "The hedge is sized on the forecast of net exposure at the end of the next "
+            "rebalance period, not on today's book, because today's receivables will have "
+            "settled by then. The model is a calendar-structural regression of log exposure "
+            "on weekday, month-end and month-start position, month and trend, with AR(1) "
+            "errors (ADR-0011). Rolling-origin evaluation over monthly origins from "
+            f"{d.hcfg.oos_start.year - 1} against a seasonal-naive baseline:\n\n"
+            + df_to_markdown(d.forecast_by_horizon.round(2))
+            + f"\n\nAt the policy horizon the model's skill against the naive is "
+            f"{skill_21:.2f} (pinball loss reduced by {_pct(skill_21)}) and its nominal 95% "
+            f"interval covers {_pct(cov95_21)} of outcomes. The intervals are therefore too "
+            "narrow; the report states that rather than widening them after the fact, and "
+            "the hedge policy uses the median, not the band. The calibration figure shows "
+            "coverage by horizon and quantile.\n\n"
+            + _fig(figs, "calibration", "forecast calibration")
+            + f"\n\nLatest {d.hcfg.horizon_days}-day-ahead forecast (currency units):\n\n"
+            + df_to_markdown(d.forecast_latest.round({"2.5%": 0, "median": 0, "97.5%": 0})),
+        )
+    )
+
+    sections.append(
+        (
+            "Risk model: VaR, Expected Shortfall and the coverage verdicts",
+            f"Expected Shortfall at {d.hcfg.horizon_days} days / {d.hcfg.confidence:.0%} on "
+            f"{d.as_of.date()}, USD m, for every method family in the engine, on the net "
+            "exposure and on the exposure net of hedges in force:\n\n"
+            + df_to_markdown(d.risk_21d.round(2))
+            + "\n\nWhich of these to believe is decided by the one-day coverage backtest from "
+            f"{d.hcfg.oos_start.year} (Kupiec unconditional coverage, Christoffersen "
+            "independence, Basel traffic light, Acerbi-Szekely Z2 for ES). A verdict of PASS "
+            f"needs every p-value at or above 0.05. Passing: {pass_txt}.\n\n"
+            + df_to_markdown(_var_table(d))
+            + "\n\nThe optimizer therefore uses the Student-t model with EWMA(0.94) covariance "
+            f"(tail index {float(h['nu']):.1f} on the latest window). Multi-day coverage is not "
+            "tested formally because overlapping windows break the tests' independence "
+            "assumption (ADR-0010); the 21-day ES is the one-day model scaled by the "
+            "square-root of time under the t distribution.",
+        )
+    )
+
+    sections.append(
+        (
+            "Stress",
+            "Historical replays of five episodes and four hypothetical shocks applied to the "
+            f"net exposure on {d.as_of.date()}, P&L in USD m. *Propagated* means the shock is "
+            "given to the named currencies and the others move by their Gaussian conditional "
+            "expectation; otherwise only the named currencies move.\n\n"
+            + df_to_markdown(d.stress.round(2)),
+        )
+    )
+
+    sections.append(
+        (
+            "Cost of risk reduction: the frontier and the chosen point",
+            "The frontier traces the minimum expected hedging cost (carry plus spread, per "
+            "year) for every ES budget from zero (full hedge) to the unhedged ES. "
+            + frontier_txt
+            + " Reference policies at today's exposures:\n\n"
+            + df_to_markdown(
+                d.reference.assign(
+                    residual_es_usd_m=(d.reference["residual_es_usd"] / 1e6).round(2),
+                    annual_cost_usd_m=(d.reference["annual_cost_usd"] / 1e6).round(2),
+                )[["policy", "residual_es_usd_m", "annual_cost_usd_m"]]
+            )
+            + "\n\n"
+            + _fig(figs, "frontier", "cost-risk frontier")
+            + "\n\nThe optimizer is a convex programme (linear cost, ES of a linear book under "
+            "an elliptical distribution is a norm of an affine function of the ratios) solved "
+            "with SLSQP, with a 2 bp turnover regulariser so ratios do not flip between 0 and "
+            "1 on tiny carry differences when the budget is slack (ADR-0012).",
+        )
+    )
+
+    months_txt = ""
+    if worst_month is not None:
+        months_txt = (
+            f" The optimizer's worst of the four was {worst_month['month']} at USD "
+            f"{_m(worst_month['pnl_total'])}m against an ex-ante ES of "
+            f"{_m(worst_month['ex_ante_es_usd'])}m: the budget bounds the risk of the hedged "
+            "*forecast* exposure, not forecast error or intra-month exposure swings, which is "
+            f"also why the full hedge keeps USD {_m(fh['daily_vol_annualized_usd'])}m of "
+            "annual P&L volatility."
+        )
+    sections.append(
+        (
+            "Out-of-sample policy performance, 2015 to the present",
+            f"Walk-forward backtest, monthly rebalance from {d.hcfg.oos_start}, one-month "
+            "forwards priced by covered interest parity at each origin, hedging the "
+            f"{d.hcfg.horizon_days}-day forecast; P&L marked on the actual daily exposure path "
+            "with forward mark-to-market, carry accrual and spread (ADR-0013). No look-ahead: "
+            "covariance, tail index, rates and forecasts use data up to the origin only.\n\n"
+            + df_to_markdown(_summary_table(d))
+            + "\n\nMean optimizer hedge ratio over the backtest: "
+            + ", ".join(f"{c} {v:.2f}" for c, v in d.ratios_mean.items())
+            + ".\n\n"
+            + _fig(figs, "cumulative", "cumulative P&L by policy")
+            + "\n\n"
+            + _fig(figs, "ratios", "optimizer hedge ratios by month")
+            + "\n\n**March 2020 and 2022.** Monthly P&L by policy in the four stress months, "
+            "USD m:\n\n"
+            + df_to_markdown(_stress_month_table(d))
+            + "\n\n"
+            + months_txt.strip()
+            + "\n\n**By year** (total P&L, USD m):\n\n"
+            + df_to_markdown(_by_year_table(d))
+            + "\n\n"
+            + _fig(figs, "monthly", "monthly P&L distribution by policy"),
+        )
+    )
+
+    sections.append(
+        (
+            "What this model does not know",
+            _limitations(d, cov95_21, int(opt["months_loss_gt_budget"]), int(opt["n_months"])),
+        )
+    )
+
+    sections.append(
+        (
+            "Reproducing this report",
+            "```bash\nuv sync --all-groups\nuv run fxrisk all      # fetch (cache) -> quality -> "
+            "flows -> exposure -> forecast -> hedge -> backtest -> risk -> report\n```\n\n"
+            "Every number above is read from the DuckDB tables the stages write "
+            "(`data/fxrisk.duckdb`); `fxrisk report` recomputes nothing. Inputs: "
+            "`config/flows.yaml` (the stylized business), `config/hedge.yaml` (budget, costs, "
+            "policies), `data/cache/` (market data with provenance in `manifest.json`). "
+            "Methods: `docs/methodology.md`; decisions: `docs/decisions/`; instrument "
+            f"mechanics: `docs/hedging-primer.md`. Package version {__version__}.",
+        )
+    )
+    return sections
+
+
+def _frontier_text(d: ReportData) -> str:
+    fr = d.frontier.sort_values("budget_usd")
+    full = fr.iloc[0]
+    budget = float(d.hedge_headline["budget_usd"])
+    at_budget = fr.iloc[(fr["budget_usd"] - budget).abs().argmin()]
+    # the frontier flattens where the budget stops binding
+    slack = fr[fr["residual_es_usd"] < fr["budget_usd"] - 1e-6]
+    flat_txt = ""
+    if not slack.empty:
+        flat_txt = (
+            f" Beyond a budget of about USD {float(slack['budget_usd'].iloc[0]) / 1e6:.0f}m the "
+            "constraint stops binding and the policy is simply 'hedge every currency whose "
+            "forward earns carry', which is the cheapest book regardless of risk."
+        )
+    return (
+        f"A full hedge costs USD {float(full['annual_cost_usd']) / 1e6:.2f}m a year for zero "
+        f"residual ES, while at the USD {budget / 1e6:.0f}m budget the cost is USD "
+        f"{float(at_budget['annual_cost_usd']) / 1e6:.2f}m a year (negative = the programme "
+        f"earns carry).{flat_txt}"
+    )
+
+
+def _limitations(d: ReportData, cov95: float, breaches: int, n_months: int) -> str:
+    items = [
+        "**The business is synthetic.** Volumes, settlement lags, payout cadences and the "
+        "2020 regimes are stylized and calibrated only to public retail-sales seasonality "
+        "(ADR-0008). The *method* transfers to a real book; the numbers do not.",
+        f"**The ES budget covers the hedged forecast exposure only.** Forecast error and "
+        f"intra-month exposure variation are outside it, which is why {breaches} of {n_months} "
+        "backtest months lost more than the budget and why even a full hedge retains P&L "
+        "volatility (ADR-0013). A budget meant to bound realized monthly loss would need to "
+        "be set lower, or the policy would need an intra-month adjustment rule (backlog B17).",
+        f"**Forecast intervals are too narrow.** The nominal 95% band covers {_pct(cov95)} at "
+        f"the {d.hcfg.horizon_days}-day horizon (ADR-0011, backlog B16). The policy uses the "
+        "median, so this affects the risk statement, not the hedge sizes.",
+        "**Carry is an expected cost under a random-walk spot.** Realized hedging cost in the "
+        "backtest includes the spot move and can have either sign; the carry signal itself "
+        "is not a forecast of returns (hedging primer, section 3).",
+        "**Forwards only.** No options, no cross-currency basis, no NDF basis for BRL and "
+        "INR; one-way spreads are stylized round numbers from `config/hedge.yaml` (hedging "
+        "primer, section 5; backlog B3, B4, B18).",
+        "**Short rates are monthly OECD series for most currencies**, forward-filled, with "
+        "BIS policy rates as the fallback when a series lags; the SGD rate is a flagged USD "
+        "proxy so SGD carry is zero by construction (ADR-0006, backlog B1, B2).",
+        "**Coverage is tested at one day.** The 21-day ES is a scaled one-day model; the "
+        "overlapping-window tests at longer horizons have too little power to be decisive "
+        "(ADR-0010, backlog B11).",
+        "**One risk model inside the optimizer.** The Student-t EWMA model is the one that "
+        "passed the tests on this book; a different book might prefer another, and the "
+        "engine reports all of them so that choice can be revisited.",
+        "**Fixing-time mismatches** between sources (noon New York, 14:15 CET, Bank of "
+        "Canada daily average) are reconciled within tolerance, not modelled (ADR-0005).",
+        "**Weekday calendar, no holidays**, for settlement and payouts (backlog B9).",
+    ]
+    return "\n".join(f"* {i}" for i in items)
+
+
+# ---------------------------------------------------------------------------- pipeline
+
+
+def run_report(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Path:
+    """Draw the two exposure figures, assemble the report, write ``reports/decision_report.md``."""
+    data = load_report_data(paths, hcfg)
+    figs = paths.figures_dir
+    wf = data.waterfall[~data.waterfall["ccy"].str.startswith("TOTAL")]
+    data.figures = {
+        "waterfall": plots.waterfall_plot(wf, figs / "exposure_waterfall.png"),
+        "history": plots.exposure_history_plot(
+            data.exposure_monthly, figs / "exposure_history.png"
+        ),
+        "calibration": figs / "forecast_calibration.png",
+        "frontier": figs / "hedge_frontier.png",
+        "cumulative": figs / "policy_cumulative_pnl.png",
+        "ratios": figs / "policy_hedge_ratios.png",
+        "monthly": figs / "policy_monthly_pnl.png",
+    }
+    missing = [k for k, p in data.figures.items() if not p.exists()]
+    for k in missing:
+        log.warning("figure %s missing (%s); the report will note it", k, data.figures[k])
+        del data.figures[k]
+    out = paths.reports_dir / REPORT_NAME
+    write_markdown(
+        out,
+        f"FX hedging decision report as of {data.as_of.date()}",
+        [
+            (
+                "Summary",
+                f"Generated {pd.Timestamp.now(tz='UTC').strftime('%Y-%m-%d %H:%M UTC')} from "
+                f"market data retrieved {data.retrieved_on}; data quality "
+                f"**{data.quality_overall}**; ES budget USD "
+                f"{fmt(data.hcfg.es_budget_usd / 1e6)}m at {data.hcfg.horizon_days} days / "
+                f"{data.hcfg.confidence:.0%}; exposure input: "
+                f"{data.hedge_headline['exposure_source']}.",
+            ),
+            *render_sections(data),
+        ],
+    )
+    log.info("decision report written: %s", out)
+    return out

@@ -1,8 +1,10 @@
 # Hedging primer
 
 Instrument mechanics in the repo's own notation. Everything here is implemented in
-`fx_treasury_risk/hedge/` (milestone 3); this document is written alongside the code so
-that every formula can be pointed at a function and a test.
+`fx_treasury_risk/hedge/` and `fx_treasury_risk/backtest/policy.py`; this document is
+written alongside the code so that every formula can be pointed at a function and a test.
+Sections 1-5 cover one forward on one exposure; 6-8 cover the policy across currencies
+and what the backtest measures; 9 is a glossary.
 
 ## Notation
 
@@ -110,3 +112,109 @@ payoff `notional * (S_T - F)` at maturity. `tests/test_policy.py` checks that id
   The P&L mechanics are the same as a deliverable forward; the pricing differs by the
   onshore/offshore basis, which is not modelled.
 * **Credit, margin, collateral.** Forwards are assumed uncollateralized with a bank line.
+
+## 6. Hedge ratios and the risk budget
+
+Section 1 fixed one currency and one ratio `h`. The policy chooses a vector of ratios,
+one per currency, and the question is how to trade cost against risk across them.
+
+Let `E_c` be the USD value of the exposure in currency `c` (positive = long), `h_c` the
+hedge ratio, `r_c` the log return of `usd_per_fcy` over the horizon. The hedged P&L is
+approximately
+
+    P&L = sum_c (1 - h_c) * E_c * r_c
+
+because a forward has delta one: hedging `h_c` of the exposure removes that fraction of
+the currency's P&L (the forward's own P&L is `-h_c * E_c * r_c` plus the carry, which is
+known at trade time). The hedged book is therefore a linear combination of currency
+returns with weights `w_c = (1 - h_c) * E_c`.
+
+**Expected Shortfall of a linear book.** If the returns are jointly elliptical (normal
+or Student-t), every linear combination has the same shape of distribution, and its ES at
+confidence `alpha` is a multiple of its standard deviation:
+
+    ES_alpha(w) = k(nu, alpha) * sqrt(w' * Sigma * w)
+
+with `Sigma` the covariance of the returns over the horizon and `k` a constant that
+depends only on the tail index `nu` and `alpha` (`k = phi(z)/(1-alpha)` for the normal;
+`es_multiplier` in `hedge/optimizer.py` for the t). The repo uses the EWMA(0.94)
+covariance scaled by `sqrt(21)` and the t tail index estimated on the same window, the
+model that passed the coverage tests (ADR-0010).
+
+**Expected cost of the hedge.** From section 3, hedging `h_c` of currency `c` for one
+tenor costs `h_c * E_c * (r_fcy,c - r_usd) * tau` of carry (negative = earns) plus the
+bid-ask spread on the notional, `h_c * |E_c| * spread_c`. Both are linear in `h_c`.
+
+**The problem.** Minimise the linear cost subject to `ES(w(h)) <= budget` and
+`0 <= h_c <= 1`. The ES is a norm (`sqrt(w' Sigma w)` is the Sigma-norm of `w`) of an
+affine function of `h`, hence convex; a linear objective over a convex set has a unique
+optimum that a local solver finds (ADR-0012). The solution has a simple shape: every
+currency whose forward *earns* carry is hedged fully whatever the budget, because that
+lowers both cost and risk; the budget is spent on the currencies whose forwards cost
+money, in the order of their cost per unit of risk removed. In the current data that is
+why EUR, GBP, CAD, JPY, CHF and SGD are always at 100% and the budget is consumed by
+BRL, MXN and INR (section 3: high-yielders cost carry).
+
+A 2 bp turnover penalty on the change in notional since the previous month is added to
+the objective only, so that ratios do not flip between 0 and 1 when two currencies'
+costs are within rounding of each other and the budget is slack; it is not a realized
+cost in the backtest.
+
+## 7. Reading the frontier
+
+`reports/figures/hedge_frontier.png` plots the minimum cost for every budget from zero
+(full hedge, every `h_c = 1`) up to the unhedged ES (`h_c` free). Three regions:
+
+* **Left end, budget near zero:** the cost is the full-hedge cost, carry of the
+  high-yielders and spread on everything. Each extra dollar of budget lets the optimizer
+  release the most expensive currency first; the frontier is steep.
+* **Middle:** the frontier flattens as cheaper currencies are released. The chosen point
+  (USD 4m in `config/hedge.yaml`) sits here; the slope at that point is the marginal
+  cost of risk, in USD of annual carry per USD of ES, which is the number to quote when
+  someone asks whether the budget should move.
+* **Right end:** beyond the budget at which every carry-costing currency is unhedged, the
+  constraint stops binding and the line is flat at the cost of hedging only the
+  carry-earning currencies, which is negative: the cheapest book earns carry and still
+  carries only the risk of the high-yielders.
+
+The reference points on the figure (unhedged, legacy 50%, full hedge) are the same
+policies the backtest runs; their distance above the frontier is the inefficiency of a
+uniform ratio.
+
+## 8. What the backtest's "hedging cost" measures
+
+The frontier's cost is *expected*: carry under a random-walk spot, plus spread. The
+backtest reports *realized* cost, which is the sum of three marked-to-market pieces for
+each monthly roll (`backtest/policy.py`, ADR-0013):
+
+    hedge mtm     = notional * (S_t - S_0)            daily, delta one
+    carry accrual = notional * (S_0 - F) * (days elapsed / tenor)
+    spread        = -|notional| * spread_bp / 1e4      on the trade date
+
+The mark-to-market plus carry sum to the forward's payoff `notional * (S_T - F)` at
+maturity. Realized cost differs from expected cost by the spot move on the hedged
+notional, which has either sign; over a long sample its mean is the uncovered interest
+parity deviation, and over a single stress month it is the whole story (in March 2020
+the forwards made USD 4.8m while the exposure lost 10.6m).
+
+Three sources of residual risk remain after hedging, and only the first is inside the ES
+budget: the unhedged share of each currency; the error in the exposure forecast the
+notional was sized on; and the variation of exposure within the month while the notional
+is fixed. The second and third are why a full hedge still shows P&L volatility in the
+backtest, and why a month can lose more than the budget.
+
+## 9. Glossary
+
+| Term | Meaning here |
+|---|---|
+| carry | `(S - F)/S` annualized; the forward discount of the currency. Positive = selling the currency forward costs money |
+| CIP | covered interest parity, the no-arbitrage forward price of section 2 |
+| ES, Expected Shortfall | the mean loss in the worst `(1 - alpha)` share of outcomes, here `alpha = 0.99`, 21 days |
+| frontier | the minimum expected cost for each ES budget (section 7) |
+| hedge ratio | fraction of the exposure sold (or bought) forward, in [0, 1] |
+| legacy 50% | the placeholder programme: half of last month's average net exposure, every currency |
+| NDF | non-deliverable forward, cash-settled; BRL and INR in practice |
+| net of hedges | net exposure plus the forwards in force on the date |
+| roll | settling the maturing forward and dealing a new one at the next rebalance |
+| tenor | the forward's life, 30 days in the policy |
+| UIP | uncovered interest parity, the hypothesis that carry is offset by the expected spot move; its average failure is what makes carry a cost |

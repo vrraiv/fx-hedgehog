@@ -28,7 +28,7 @@ Exposure input: calendar_ar1 median forecast, 21 days ahead. Risk model: Student
 | CHF | 12,911,068 | 15.69 | 1 | -15.69 | -4.1 | 0.8 | fred:IR3TIB01CHM156N | no |
 | MXN | 458,597,511 | 24.4 | 0.07 | -1.7 | 2.83 | 3 | fred:IR3TIB01MXM156N | no |
 | BRL | 154,288,684 | 28.44 | 0.7 | -19.87 | 9.77 | 8 | fred:IRSTCI01BRM156N | no |
-| INR | 2,850,916,615 | 30.03 | 0 | -0 | 1.43 | 6 | fred:IRSTCI01INM156N | no |
+| INR | 2,850,916,615 | 30.03 | 0 | 0 | 1.43 | 6 | fred:IRSTCI01INM156N | no |
 | SGD | 16,700,976 | 13.07 | 1 | -13.07 | 0 | 1.5 | proxy:USD:DTB3 | yes |
 
 ## Reference policies at today's exposures
