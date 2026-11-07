@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from fx_treasury_risk import config
-from fx_treasury_risk.cli import EXIT_NOT_IMPLEMENTED, app
+from fx_treasury_risk.cli import app
 
 runner = CliRunner()
 
@@ -16,9 +16,32 @@ def test_version() -> None:
     assert result.exit_code == 0 and "fxrisk" in result.output
 
 
-def test_unimplemented_stage_exits_2() -> None:
+def test_every_stage_is_a_command() -> None:
+    result = runner.invoke(app, ["--help"])
+    for stage in (
+        "fetch",
+        "quality",
+        "flows",
+        "exposure",
+        "forecast",
+        "hedge",
+        "backtest",
+        "risk",
+        "report",
+        "all",
+    ):
+        assert stage in result.output
+
+
+def test_report_without_upstream_tables_fails_cleanly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FXRISK_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("FXRISK_REPORTS_DIR", str(tmp_path / "reports"))
     result = runner.invoke(app, ["report"])
-    assert result.exit_code == EXIT_NOT_IMPLEMENTED
+    assert result.exit_code != 0
+    assert isinstance(result.exception, RuntimeError)
+    assert "fxrisk all" in str(result.exception)
 
 
 @pytest.mark.skipif(

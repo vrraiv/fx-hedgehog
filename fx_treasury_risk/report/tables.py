@@ -18,7 +18,8 @@ def fmt(v: object) -> str:
             return ""
         if v != 0 and abs(v) < 1e-3:
             return f"{v:.3g}"
-        return f"{v:,.2f}".rstrip("0").rstrip(".")
+        text = f"{v:,.2f}".rstrip("0").rstrip(".")
+        return "0" if text == "-0" else text  # -0.0 and -0.004 both print as 0
     if isinstance(v, pd.Timestamp | datetime | date):
         return pd.Timestamp(v).date().isoformat()
     return str(v)

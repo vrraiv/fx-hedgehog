@@ -1,0 +1,107 @@
+name: weekly refresh
+
+# Re-downloads every series, reruns the whole pipeline and opens a pull request with the
+# updated cache, reports and figures. Nothing is pushed to main directly: the PR runs the
+# normal CI (lint, types, tests, every stage from the refreshed cache) and a person merges
+# it after reading reports/alerts.md and the decision report's summary (ADR-0014).
+#
+# Needs two repository settings:
+#   * secret FRED_API_KEY  (the loader falls back to the keyless CSV without it, but the
+#     API is the documented path and is rate-limited more generously)
+#   * Settings > Actions > General > Workflow permissions: read and write, and
+#     "Allow GitHub Actions to create and approve pull requests" enabled.
+
+on:
+  schedule:
+    - cron: "30 11 * * 1" # Mondays 11:30 UTC: after the Friday H.10 fixings are on FRED
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+env:
+  UV_LINK_MODE: copy
+  FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install (locked)
+        run: uv sync --all-groups --locked
+
+      - name: Refresh every series from the public APIs
+        run: uv run fxrisk fetch --refresh
+
+      - name: Data quality on the refreshed cache
+        id: quality
+        # A FAIL still opens the PR, labelled as such, so that the alerts are reviewed; the
+        # remaining stages are skipped because their inputs are suspect.
+        continue-on-error: true
+        run: uv run fxrisk quality
+
+      - name: Flows, exposure, forecast, hedge, backtests, risk and the decision report
+        if: steps.quality.outcome == 'success'
+        run: |
+          uv run fxrisk flows
+          uv run fxrisk exposure
+          uv run fxrisk forecast
+          uv run fxrisk hedge
+          uv run fxrisk backtest
+          uv run fxrisk risk
+          uv run fxrisk report
+
+      - name: Summarise for the pull request
+        id: summary
+        shell: bash
+        run: |
+          {
+            echo "title=chore(data): weekly refresh $(date -u +%Y-%m-%d)"
+            if [ "${{ steps.quality.outcome }}" = "success" ]; then
+              echo "status=quality passed"
+            else
+              echo "status=QUALITY FAILED - see reports/alerts.md; downstream stages skipped"
+            fi
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo 'body<<EOF'
+            echo "Automated weekly refresh of data/cache and every generated report."
+            echo
+            echo "**Quality:** ${{ steps.quality.outcome }}"
+            echo
+            echo '```'
+            sed -n '1,20p' reports/alerts.md 2>/dev/null || echo "(no alerts file)"
+            echo '```'
+            echo
+            if [ -f reports/decision_report.md ]; then
+              echo "**Decision report summary:**"
+              echo
+              sed -n '/^## Summary/,/^## The question/p' reports/decision_report.md | sed '1d;$d'
+              sed -n '/^## The question and the answer/,/^| ccy/p' reports/decision_report.md | sed '1d;$d'
+            fi
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the refresh pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: auto/weekly-refresh
+          delete-branch: true
+          commit-message: ${{ steps.summary.outputs.title }}
+          title: "${{ steps.summary.outputs.title }} (${{ steps.summary.outputs.status }})"
+          body: ${{ steps.summary.outputs.body }}
+          labels: data-refresh
+          add-paths: |
+            data/cache/**
+            reports/**

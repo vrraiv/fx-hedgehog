@@ -274,3 +274,25 @@ full hedge, optimizer under a fixed USD 4m ES budget. Metrics: P&L volatility (d
 annualized and monthly), total P&L, carry and spread per year, maximum drawdown, worst
 month, months with a loss beyond the budget, share of months in which the budget bound;
 overall, by year, and for March/April 2020 and September/October 2022.
+
+## 9. Reporting and operations *(milestone 4)*
+
+Code: `fx_treasury_risk/report/decision.py`, `report/plots.py`, `sql/110_report_views.sql`,
+`dags/fxrisk_daily.py`, `.github/workflows/refresh.yml`. Design: ADR-0014.
+
+`fxrisk report` assembles `reports/decision_report.md` from the tables the earlier stages
+persisted in DuckDB and the figures they drew; it computes nothing and recomputes nothing,
+so the report cannot disagree with `reports/*.md`. Two figures are drawn here from
+exposure views: the waterfall on the last FX date (gross, net, net of hedges by currency)
+and the monthly-average history of the group book (averages rather than month-end
+snapshots, because exposure dips on the last day of every month when fees are swept).
+Sections, in order: the question and its answer; data and quality; exposure waterfall;
+forecast calibration; VaR/ES with the coverage verdicts; stress; the cost-risk frontier
+and the chosen point; out-of-sample policy performance with the 2020 and 2022 months
+broken out; what the model does not know; how to reproduce.
+
+Operations: the Airflow DAG is one task per CLI stage in the CLI's order (asserted by
+`tests/test_dag.py`), illustrative only. The weekly GitHub Actions workflow refreshes
+every series, reruns the pipeline and opens a pull request with the new cache and
+reports; a person merges it after reading the alerts. CI itself never touches the
+network.

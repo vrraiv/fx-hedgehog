@@ -11,7 +11,7 @@ deferred, and what it would take.
 | B4 | **FX options** as a second instrument class. | Needs an implied-vol surface and a non-linear ES; see hedging primer section 5. | 3-5 days |
 | B5 | **Intraday/real-time rates.** | Out of scope for a daily treasury process. | n/a |
 | B6 | **Parquet cache** instead of CSV if the cache grows beyond ~50 MB. | CSV is diff-friendly and 4.5 MB today. | 0.5 day |
-| B7 | **Airflow DAG executed in CI** (currently illustrative only, milestone 4). | Airflow in CI is slow and brittle; the CLI stages are tested directly. | 1 day |
+| B7 | **Airflow DAG executed in CI.** `dags/fxrisk_daily.py` is illustrative; `tests/test_dag.py` only checks its stage order against the CLI (ADR-0014). | Airflow in CI is slow and brittle; the CLI stages are tested directly. | 1 day |
 | B8 | **BIS Triennial 2025 Table 4 shares** for INR, MXN, BRL (README cites 2022 values for those three). | The 2025 annex table was not retrievable programmatically on 2026-11-05. | 0.1 day |
 | B9 | **Holiday calendars** for settlement and payouts (currently weekdays only). | Small effect on exposure timing; would need per-country calendars. | 0.5 day with `holidays` |
 | B10 | **Entity-level functional-currency view** of exposure (e.g. the Canadian entity's USD balances as CAD-functional exposure). | The group USD view is what the hedge policy acts on; the entity view is a reporting lens. | 1 day, mostly SQL |
@@ -23,3 +23,5 @@ deferred, and what it would take.
 | B16 | **Conformal calibration of forecast intervals** from past out-of-sample errors. | Intervals are 10-15% too narrow (ADR-0011); a rolling empirical adjustment would fix the level without changing the model. | 0.5 day |
 | B17 | **Intra-month hedge adjustment** when exposure drifts beyond a band. | Monthly rolls are the common corporate practice; a band rule needs transaction-cost calibration. | 1 day |
 | B18 | **Cross-currency basis and NDF basis** in the policy backtest's realized cost. | No public daily basis data (see B3). | depends on data |
+| B19 | **Hedge the average forecast exposure over the holding period** rather than the point forecast at the 21-day target date. Exposure in the synthetic business dips on the last day of every month, so a forward sized on the month-end-dated forecast over-hedges the last day and under-hedges the middle of the month (visible in the waterfall's negative net-of-hedges on month-ends). The forecast stage already produces every horizon 1-21 at each origin; the change is to average the medians. | Changes published results; needs a re-run of the policy backtest and a re-read of ADR-0013. | 0.5 day |
+| B20 | **Walkthrough notebook** (`notebooks/walkthrough.ipynb`) that opens `data/fxrisk.duckdb` and steps through the tables behind the report. | The brief keeps notebooks out of the pipeline; the DuckDB file and the report serve the same purpose for now. | 0.5 day |

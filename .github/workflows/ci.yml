@@ -41,7 +41,7 @@ jobs:
         # retrieval date, not today's date).
         run: uv run fxrisk quality
 
-      - name: Flows, exposure, forecast, hedge, backtests and risk from cache
+      - name: Flows, exposure, forecast, hedge, backtests, risk and the decision report
         run: |
           uv run fxrisk flows
           uv run fxrisk exposure
@@ -49,13 +49,15 @@ jobs:
           uv run fxrisk hedge
           uv run fxrisk backtest
           uv run fxrisk risk --mc-paths 5000
+          uv run fxrisk report
 
-      - name: Upload quality report
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: quality-report
+          name: reports
           path: |
+            reports/decision_report.md
             reports/quality_report.md
             reports/alerts.md
             reports/risk_tables.md

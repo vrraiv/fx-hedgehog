@@ -135,9 +135,31 @@ def run_hedge(paths: config.Paths, hcfg: HedgeConfig | None = None) -> HedgeRun:
                 "is_proxy": fwd["is_proxy"],
             }
         )
+        headline = pd.DataFrame(
+            {
+                "as_of": [as_of],
+                "exposure_source": [source],
+                "unhedged_es_usd": [sol.unhedged_es_usd],
+                "residual_es_usd": [sol.residual_es_usd],
+                "budget_usd": [hcfg.es_budget_usd],
+                "carry_per_year_usd": [sol.carry_cost_usd * per_year],
+                "spread_per_year_usd": [sol.spread_cost_usd * per_year],
+                "nu": [prob.nu],
+                "binding": [sol.binding],
+                "horizon_days": [hcfg.horizon_days],
+                "confidence": [hcfg.confidence],
+                "tenor_days": [hcfg.forward_tenor_days],
+            }
+        )
+        ref_rows = [
+            {"policy": k, "residual_es_usd": v[0], "annual_cost_usd": v[1]}
+            for k, v in reference.items()
+        ] + [{"policy": "optimizer", "residual_es_usd": chosen[0], "annual_cost_usd": chosen[1]}]
         for name, frame in (
             ("hedge_recommendation", rec.reset_index().rename(columns={"index": "ccy"})),
             ("hedge_frontier", front),
+            ("hedge_headline", headline),
+            ("hedge_reference", pd.DataFrame(ref_rows)),
         ):
             con.register("tmp_df", frame)
             con.execute(f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM tmp_df")
