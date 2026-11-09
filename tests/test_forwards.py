@@ -24,6 +24,7 @@ def test_discount_to_yield() -> None:
     assert forwards.simple_yield_from_discount(5.0, 90, 360) == pytest.approx(5.0633, abs=1e-3)
     assert forwards.simple_yield_from_discount(0.0, 90) == 0.0
     assert forwards.usd_simple_rate(5.0, "simple", 90, 360) == 5.0
+    assert forwards.instrument_days(3) == 91 and forwards.instrument_days(0) == 0
 
 
 def test_day_count_mismatch_is_small() -> None:
@@ -76,10 +77,27 @@ def test_forward_table_shapes(tmp_paths: config.Paths, mini: MiniTruth) -> None:
         rates = rates_on(con, as_of)
         tbl = forwards.forward_table(spots[["CAD"]], rates, 30)
         assert list(tbl.index) == ["CAD"]
+        # DTB3 is a 13-week bill: its discount rate converts over 91 days, not over the
+        # 30-day tenor of the forward it is used to price
+        r_usd = forwards.simple_yield_from_discount(0.5, 91)
+        assert tbl.loc["CAD", "r_usd_pct"] == pytest.approx(r_usd)
         assert tbl.loc["CAD", "forward"] == pytest.approx(
-            forwards.forward_rate(
-                spots["CAD"], forwards.simple_yield_from_discount(0.5, 30), 0.48, 30, 360, 365
-            )
+            forwards.forward_rate(spots["CAD"], r_usd, 0.48, 30, 360, 365)
         )
+    finally:
+        con.close()
+
+
+def test_backtest_rates_match_forward_table(tmp_paths: config.Paths, mini: MiniTruth) -> None:
+    """The policy backtest's wide rate table converts T-bills the same way as the forwards."""
+    con = db.build_database(tmp_paths)
+    try:
+        from fx_treasury_risk.hedge.rates import rates_on, rates_wide
+
+        as_of = pd.Timestamp("2017-01-10")
+        wide = rates_wide(con).loc[as_of]
+        tbl = forwards.forward_table(pd.Series({"CAD": 0.75}), rates_on(con, as_of), 30)
+        assert wide["USD"] == pytest.approx(tbl.loc["CAD", "r_usd_pct"])
+        assert wide["CAD"] == pytest.approx(0.48)
     finally:
         con.close()

@@ -6,7 +6,7 @@ import duckdb
 import pandas as pd
 
 from fx_treasury_risk import config
-from fx_treasury_risk.hedge.forwards import forward_table
+from fx_treasury_risk.hedge.forwards import forward_table, instrument_days, usd_simple_rate
 
 
 def rates_on(con: duckdb.DuckDBPyConnection, as_of: pd.Timestamp) -> pd.DataFrame:
@@ -20,16 +20,21 @@ def rates_on(con: duckdb.DuckDBPyConnection, as_of: pd.Timestamp) -> pd.DataFram
 
 
 def rates_wide(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    """Rate percent by date (rows) and currency (columns), with USD discount already converted.
+    """Simple rate in percent by date (rows) and currency (columns), for the policy backtest.
 
-    Used by the policy backtest; the discount-to-yield conversion assumes a 30-day tenor.
+    Discount-basis rows (US T-bills) are converted to a simple yield over the bill's own
+    maturity, exactly as :func:`fx_treasury_risk.hedge.forwards.forward_table` does.
     """
     df = con.execute(
-        "SELECT obs_date, ccy, rate_pct, basis, day_count FROM rates_short ORDER BY obs_date, ccy"
+        "SELECT obs_date, ccy, rate_pct, basis, day_count, tenor_months "
+        "FROM rates_short ORDER BY obs_date, ccy"
     ).df()
-    disc = df["basis"] == "discount"
-    d = df.loc[disc, "rate_pct"] / 100
-    df.loc[disc, "rate_pct"] = 100 * d / (1 - d * 30 / df.loc[disc, "day_count"])
+    df["rate_pct"] = [
+        usd_simple_rate(float(r), str(b), instrument_days(int(t)), int(dc))
+        for r, b, dc, t in zip(
+            df["rate_pct"], df["basis"], df["day_count"], df["tenor_months"], strict=True
+        )
+    ]
     wide = df.pivot(index="obs_date", columns="ccy", values="rate_pct")
     wide.index = pd.DatetimeIndex(wide.index)
     wide.columns.name = None
