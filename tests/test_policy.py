@@ -53,6 +53,14 @@ def test_month_pnl_identities() -> None:
     assert full["pnl_total"].sum() == pytest.approx(0.0, abs=1e-6)
 
 
+def test_max_drawdown_counts_losses_from_the_start() -> None:
+    # cumulative P&L 0 -> -1 -> -2 -> 1 -> -1: the worst fall from a peak is 0 -> -2,
+    # which a peak taken only over the realised days (-1) would understate as -1
+    assert policy.max_drawdown(np.array([-1.0, -1.0, 3.0, -2.0])) == pytest.approx(-2.0)
+    assert policy.max_drawdown(np.array([1.0, 2.0, -0.5, 1.0])) == pytest.approx(-0.5)
+    assert policy.max_drawdown(np.array([1.0, 1.0])) == 0.0
+
+
 def test_rebalance_dates_first_trading_day() -> None:
     cal = pd.bdate_range("2019-12-20", "2020-03-15")
     r = policy.rebalance_dates(cal, pd.Timestamp("2020-01-01"))
