@@ -55,7 +55,7 @@ milestone lands.
 | Primary USD crosses | FRED H.10 | `DEXUSEU`, `DEXUSUK`, `DEXCAUS`, `DEXJPUS`, `DEXUSAL`, `DEXSZUS`, `DEXMXUS`, `DEXBZUS`, `DEXINUS`, `DEXSIUS` | noon, New York |
 | Cross-check and fallback 1 | Bank of Canada Valet | `FXUSDCAD` + nine `FX*CAD` (2017-), legacy noon series `IEXE*` / `EUROCAE01` (2010-2017) | daily average (current) / noon (legacy), Toronto |
 | Cross-check and fallback 2 | ECB Data Portal | `EXR.D.<CCY>.EUR.SP00.A` for ten currencies | 14:15 CET |
-| Short rates | FRED (`DTB3`, `SOFR`, OECD `IR3TIB01*`, `IRSTCI01*`), BoC (`V39079`, `TB.CDN.90D.MID`), BIS `WS_CBPOL` | see ADR-0006 | |
+| Short rates | FRED (`DTB3`, `SOFR`, OECD `IR3TIB01*`, `IRSTCI01*`), BoC (`TB.CDN.90D.MID`), BIS `WS_CBPOL` | see ADR-0006 | |
 | Stress sanity check | BIS `WS_EER` nominal broad effective exchange rates, daily | | |
 | Flow seasonality | FRED `RSXFSN`/`RSXFS`; StatCan table 20-10-0056-01 | | |
 

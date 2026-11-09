@@ -144,7 +144,7 @@ are in `data/cache/manifest.json`. Coverage is 2010-01-04 onward.
 | [FRED](https://fred.stlouisfed.org) H.10 | `DEXUSEU DEXUSUK DEXCAUS DEXJPUS DEXUSAL DEXSZUS DEXMXUS DEXBZUS DEXINUS DEXSIUS` | primary USD rates (noon NY) |
 | FRED | `DTB3`, `SOFR`; OECD `IR3TIB01{EZ,GB,JP,AU,CH,CA,MX}M156N`, `IRSTCI01{BR,IN}M156N` | short rates for forward pricing (monthly OECD series forward-filled; see ADR-0006) |
 | FRED | `RSXFSN`, `RSXFS` | US retail sales, seasonality calibration of synthetic flows |
-| [Bank of Canada Valet](https://www.bankofcanada.ca/valet/docs) | `FXUSDCAD` and nine `FX*CAD` (2017-), legacy noon `IEXE*`/`EUROCAE01` (2010-2017); `V39079`, `TB.CDN.90D.MID` | CAD crosses for reconciliation and fallback; CAD rates |
+| [Bank of Canada Valet](https://www.bankofcanada.ca/valet/docs) | `FXUSDCAD` and nine `FX*CAD` (2017-), legacy noon `IEXE*`/`EUROCAE01` (2010-2017); `TB.CDN.90D.MID` | CAD crosses for reconciliation and fallback; CAD 3-month rate |
 | [ECB Data Portal](https://data.ecb.europa.eu) | `EXR.D.<CCY>.EUR.SP00.A`, ten currencies | second cross-check and fallback |
 | [BIS](https://data.bis.org) | `WS_EER` daily nominal broad EER (11 economies); `WS_CBPOL` daily policy rates (10) | stress sanity check; fallback short rates |
 | [Statistics Canada](https://www150.statcan.gc.ca) | table 20-10-0056-01, vectors `v1446859481` (NSA), `v1446859483` (SA) | Canadian retail sales seasonality |

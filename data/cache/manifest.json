@@ -464,17 +464,6 @@
       "sha256": "db7bad6adde467369a5560d7223c8e3977bf660eaa5f4ffe5c55903b17f4c7bf",
       "note": ""
     },
-    "boc:V39079": {
-      "source": "boc",
-      "series_id": "V39079",
-      "url": "https://www.bankofcanada.ca/valet/observations/V39079,TB.CDN.90D.MID/json?start_date=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:40+00:00",
-      "first_date": "2010-01-04",
-      "last_date": "2026-11-04",
-      "n_obs": 4379,
-      "sha256": "5cc5c0f5d468e4d5b6ff78433d4dc7c04559246549bdb75f45fc1d4989598995",
-      "note": ""
-    },
     "ecb:D.AUD.EUR.SP00.A": {
       "source": "ecb",
       "series_id": "D.AUD.EUR.SP00.A",
