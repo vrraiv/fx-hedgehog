@@ -2,28 +2,28 @@
 
 ## Summary
 
-Generated 2026-11-07 01:17 UTC from market data retrieved 2026-11-06; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, 21 days ahead.
+Generated 2026-11-09 23:33 UTC from market data retrieved 2026-11-06; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, 21 days ahead.
 
 ## The question and the answer
 
 *For a fixed Expected Shortfall budget at the 21-day horizon, what hedge ratios by currency minimise expected hedging cost, and how would that policy have performed out of sample from 2015 to the present, including March 2020 and 2022?*
 
-**With a 21-day 99% Expected Shortfall budget of USD 4m, hedge EUR, GBP, CAD, JPY, AUD, CHF, SGD in full; MXN 7%, BRL 70%; leave INR unhedged.** That programme earns about USD 2.1m a year of carry against USD 0.5m of bid-ask spread, and cuts the ES of the forecast book from USD 19.6m to USD 4.0m. Out of sample from 2015 with a monthly rebalance (142 months), the policy's annualized P&L volatility is USD 8.2m against 20.5m unhedged and 7.0m for a full hedge; its total P&L is USD 9.6m (-36.3m unhedged, -2.0m full hedge), its maximum drawdown USD -19.0m (-72.3m unhedged), and 5 of 142 months lost more than the budget (39 unhedged, 2 full hedge).
+**With a 21-day 99% Expected Shortfall budget of USD 4m, hedge EUR, GBP, CAD, JPY, AUD, CHF, SGD in full; MXN 7%, BRL 70%; leave INR unhedged.** That programme earns about USD 2.2m a year of carry against USD 0.5m of bid-ask spread, and cuts the ES of the forecast book from USD 19.6m to USD 4.0m. Out of sample from 2015 with a monthly rebalance (142 months), the policy's annualized P&L volatility is USD 8.2m against 20.5m unhedged and 7.0m for a full hedge; its total P&L is USD 10.1m (-36.3m unhedged, -1.4m full hedge), its maximum drawdown USD -19.0m (-74.5m unhedged), and 5 of 142 months lost more than the budget (39 unhedged, 2 full hedge).
 
 | ccy | forecast exposure (USD m) | hedge ratio | forward notional (USD m) | carry % / yr (+ = costs) | spread bp | rate source |
 |---|---|---|---|---|---|---|
-| EUR | 127.23 | 1 | -127.23 | -1.52 | 0.5 | bis:D.XM |
-| GBP | 92.63 | 1 | -92.63 | -0.31 | 0.7 | bis:D.GB |
-| CAD | 54.84 | 1 | -54.84 | -1.52 | 0.7 | boc:TB.CDN.90D.MID |
-| JPY | 19.49 | 1 | -19.49 | -2.47 | 0.6 | fred:IR3TIB01JPM156N |
-| AUD | 12.02 | 1 | -12.02 | 0.45 | 0.9 | fred:IR3TIB01AUM156N |
-| CHF | 15.69 | 1 | -15.69 | -4.1 | 0.8 | fred:IR3TIB01CHM156N |
-| MXN | 24.4 | 0.07 | -1.7 | 2.83 | 3 | fred:IR3TIB01MXM156N |
-| BRL | 28.44 | 0.7 | -19.87 | 9.77 | 8 | fred:IRSTCI01BRM156N |
-| INR | 30.03 | 0 | 0 | 1.43 | 6 | fred:IRSTCI01INM156N |
+| EUR | 127.23 | 1 | -127.23 | -1.55 | 0.5 | bis:D.XM |
+| GBP | 92.63 | 1 | -92.63 | -0.34 | 0.7 | bis:D.GB |
+| CAD | 54.84 | 1 | -54.84 | -1.54 | 0.7 | boc:TB.CDN.90D.MID |
+| JPY | 19.49 | 1 | -19.49 | -2.5 | 0.6 | fred:IR3TIB01JPM156N |
+| AUD | 12.02 | 1 | -12.02 | 0.42 | 0.9 | fred:IR3TIB01AUM156N |
+| CHF | 15.69 | 1 | -15.69 | -4.13 | 0.8 | fred:IR3TIB01CHM156N |
+| MXN | 24.4 | 0.07 | -1.7 | 2.8 | 3 | fred:IR3TIB01MXM156N |
+| BRL | 28.44 | 0.7 | -19.87 | 9.74 | 8 | fred:IRSTCI01BRM156N |
+| INR | 30.03 | 0 | 0 | 1.41 | 6 | fred:IRSTCI01INM156N |
 | SGD | 13.07 | 1 | -13.07 | 0 | 1.5 | proxy:USD:DTB3 |
 
-Carry is the annualized forward discount of the currency against USD (positive: selling the currency forward costs money; negative: it earns). The optimizer spends the budget where risk reduction is expensive and hedges everything that is cheap or free to hedge: a full hedge costs USD 0.63m a year for zero residual ES, while at the USD 4m budget the cost is USD -1.69m a year (negative = the programme earns carry). Beyond a budget of about USD 10m the constraint stops binding and the policy is simply 'hedge every currency whose forward earns carry', which is the cheapest book regardless of risk. The out-of-sample evidence is in the policy section below.
+Carry is the annualized forward discount of the currency against USD (positive: selling the currency forward costs money; negative: it earns). The optimizer spends the budget where risk reduction is expensive and hedges everything that is cheap or free to hedge: a full hedge costs USD 0.52m a year for zero residual ES, while at the USD 4m budget the cost is USD -1.78m a year (negative = the programme earns carry). Beyond a budget of about USD 10m the constraint stops binding and the policy is simply 'hedge every currency whose forward earns carry', which is the cheapest book regardless of risk. The out-of-sample evidence is in the policy section below.
 
 ## Data and quality
 
@@ -31,14 +31,14 @@ Market data: 8 checks on 2026-11-06 retrievals, overall **WARN** (`reports/quali
 
 | check | status | summary |
 |---|---|---|
-| cache_complete | PASS | all 78 registered series cached |
+| cache_complete | PASS | all 77 registered series cached |
 | schema | PASS | all cached files well-formed |
 | staleness | WARN | 2 series stale or lagging |
 | reconciliation | PASS | all 20 currency/source pairs within tolerance |
 | master_completeness | PASS | 0 NULL cells across 10 currencies; 1 cells filled from BoC/ECB |
 | calendar | PASS | no gaps longer than 6 calendar days |
 | return_outliers | WARN | 33 daily moves beyond 6 EWMA sigma (review, not necessarily errors) |
-| rates_range | PASS | all 23 rate series within [-2.0, 40.0] percent |
+| rates_range | PASS | all 22 rate series within [-2.0, 40.0] percent |
 
 ## Exposure waterfall
 
@@ -171,14 +171,14 @@ Historical replays of five episodes and four hypothetical shocks applied to the 
 
 ## Cost of risk reduction: the frontier and the chosen point
 
-The frontier traces the minimum expected hedging cost (carry plus spread, per year) for every ES budget from zero (full hedge) to the unhedged ES. A full hedge costs USD 0.63m a year for zero residual ES, while at the USD 4m budget the cost is USD -1.69m a year (negative = the programme earns carry). Beyond a budget of about USD 10m the constraint stops binding and the policy is simply 'hedge every currency whose forward earns carry', which is the cheapest book regardless of risk. Reference policies at today's exposures:
+The frontier traces the minimum expected hedging cost (carry plus spread, per year) for every ES budget from zero (full hedge) to the unhedged ES. A full hedge costs USD 0.52m a year for zero residual ES, while at the USD 4m budget the cost is USD -1.78m a year (negative = the programme earns carry). Beyond a budget of about USD 10m the constraint stops binding and the policy is simply 'hedge every currency whose forward earns carry', which is the cheapest book regardless of risk. Reference policies at today's exposures:
 
 | policy | residual_es_usd_m | annual_cost_usd_m |
 |---|---|---|
 | unhedged | 19.55 | 0 |
-| legacy_50 | 9.78 | 0.32 |
-| full_hedge | 0 | 0.63 |
-| optimizer | 4 | -1.66 |
+| legacy_50 | 9.78 | 0.26 |
+| full_hedge | 0 | 0.52 |
+| optimizer | 4 | -1.76 |
 
 ![cost-risk frontier](figures/hedge_frontier.png)
 
@@ -190,10 +190,10 @@ Walk-forward backtest, monthly rebalance from 2015-01-01, one-month forwards pri
 
 | policy | P&L vol (USD m / yr) | total P&L (USD m) | carry + spread / yr | max drawdown | worst month | months loss > budget | share of months budget binds |
 |---|---|---|---|---|---|---|---|
-| unhedged | 20.5 | -36.3 | 0 | -72.3 | -13.9 | 39 | 0 |
-| legacy 50% | 11.4 | -19.1 | -0.8 | -45.8 | -10.9 | 21 | 0 |
-| full hedge | 7 | -2 | -1.6 | -21.4 | -7.8 | 2 | 0 |
-| optimizer | 8.2 | 9.6 | 1.9 | -19 | -9.4 | 5 | 0.61 |
+| unhedged | 20.5 | -36.3 | 0 | -74.5 | -13.9 | 39 | 0 |
+| legacy 50% | 11.4 | -18.8 | -0.8 | -47.1 | -10.9 | 21 | 0 |
+| full hedge | 7 | -1.4 | -1.5 | -21.7 | -7.8 | 2 | 0 |
+| optimizer | 8.2 | 10.1 | 1.9 | -19 | -9.4 | 5 | 0.61 |
 
 Mean optimizer hedge ratio over the backtest: EUR 1.00, GBP 0.99, CAD 0.99, JPY 0.96, AUD 0.87, CHF 0.99, MXN 0.21, BRL 0.09, INR 0.01, SGD 1.00.
 
@@ -207,8 +207,8 @@ Mean optimizer hedge ratio over the backtest: EUR 1.00, GBP 0.99, CAD 0.99, JPY 
 |---|---|---|---|---|---|
 | 2020-03 | -10.6 | -4.77 | 1.05 | -5.65 | 4 |
 | 2020-04 | 0.03 | -0.2 | -0.43 | -0.6 | 4 |
-| 2022-09 | -9.66 | -6.47 | -3.29 | -4.94 | 4 |
-| 2022-10 | 1.18 | -0.78 | -2.74 | -2.31 | 4 |
+| 2022-09 | -9.66 | -6.47 | -3.28 | -4.94 | 4 |
+| 2022-10 | 1.18 | -0.78 | -2.73 | -2.3 | 4 |
 
 The optimizer's worst of the four was 2020-03 at USD -5.6m against an ex-ante ES of 4.0m: the budget bounds the risk of the hedged *forecast* exposure, not forecast error or intra-month exposure swings, which is also why the full hedge keeps USD 7.0m of annual P&L volatility.
 
@@ -219,15 +219,15 @@ The optimizer's worst of the four was 2020-03 at USD -5.6m against an ex-ante ES
 | 2015 | -23.7 | -14.2 | -4.7 | -9.2 | 0 |
 | 2016 | -12.3 | -9.7 | -7.1 | -0.5 | 0 |
 | 2017 | 23 | 12.3 | 1.5 | 6.5 | 0 |
-| 2018 | -18.3 | -9.4 | -0.5 | -3.2 | 0 |
-| 2019 | 4.5 | 5.1 | 5.6 | 7.8 | 0 |
+| 2018 | -18.3 | -9.4 | -0.4 | -3.1 | 0 |
+| 2019 | 4.5 | 5.1 | 5.6 | 7.9 | 0 |
 | 2020 | 11 | 2.9 | -5.2 | -9.9 | 2 |
 | 2021 | -16.7 | -8.4 | 0 | 1 | 0 |
-| 2022 | -14.3 | -9.7 | -5 | -3.4 | 2 |
-| 2023 | 14.3 | 12.4 | 10.5 | 17.3 | 0 |
-| 2024 | -27.9 | -14.9 | -1.8 | -9.1 | 1 |
-| 2025 | 35.5 | 21.4 | 7.2 | 14.6 | 0 |
-| 2026 | -11.4 | -6.9 | -2.5 | -2.5 | 0 |
+| 2022 | -14.3 | -9.7 | -5 | -3.3 | 2 |
+| 2023 | 14.3 | 12.4 | 10.6 | 17.4 | 0 |
+| 2024 | -27.9 | -14.8 | -1.6 | -8.9 | 1 |
+| 2025 | 35.5 | 21.4 | 7.4 | 14.7 | 0 |
+| 2026 | -11.4 | -6.9 | -2.4 | -2.4 | 0 |
 
 ![monthly P&L distribution by policy](figures/policy_monthly_pnl.png)
 
@@ -248,7 +248,7 @@ The optimizer's worst of the four was 2020-03 at USD -5.6m against an ex-ante ES
 
 ```bash
 uv sync --all-groups
-uv run fxrisk all      # fetch (cache) -> quality -> flows -> exposure -> forecast -> hedge -> backtest -> risk -> report
+uv run fxrisk all      # fetch (cache) -> quality -> flows -> exposure -> forecast -> backtest -> hedge -> risk -> report
 ```
 
 Every number above is read from the DuckDB tables the stages write (`data/fxrisk.duckdb`); `fxrisk report` recomputes nothing. Inputs: `config/flows.yaml` (the stylized business), `config/hedge.yaml` (budget, costs, policies), `data/cache/` (market data with provenance in `manifest.json`). Methods: `docs/methodology.md`; decisions: `docs/decisions/`; instrument mechanics: `docs/hedging-primer.md`. Package version 0.1.0.
