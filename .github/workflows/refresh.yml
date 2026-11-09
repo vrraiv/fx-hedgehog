@@ -51,14 +51,14 @@ jobs:
         continue-on-error: true
         run: uv run fxrisk quality
 
-      - name: Flows, exposure, forecast, hedge, backtests, risk and the decision report
+      - name: Flows, exposure, forecast, backtests, hedge, risk and the decision report
         if: steps.quality.outcome == 'success'
         run: |
           uv run fxrisk flows
           uv run fxrisk exposure
           uv run fxrisk forecast
-          uv run fxrisk hedge
           uv run fxrisk backtest
+          uv run fxrisk hedge
           uv run fxrisk risk
           uv run fxrisk report
 

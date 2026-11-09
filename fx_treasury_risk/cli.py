@@ -2,9 +2,13 @@
 
 Stages run in this order and each one reads only what earlier stages wrote::
 
-    fetch -> quality -> flows -> exposure -> forecast -> risk -> hedge -> backtest -> report
+    fetch -> quality -> flows -> exposure -> forecast -> backtest -> hedge -> risk -> report
 
-``fxrisk all`` runs them all. Exit codes: 0 success, 1 quality failure, 3 unexpected error.
+``backtest`` runs before ``hedge`` because it writes the optimizer's monthly positions
+(and rebuilds the group exposure table with them) and the hedge stage starts today's
+recommendation from the last of those positions. ``fxrisk all`` runs them all.
+
+Exit codes: 0 success, 1 quality failure, 3 unexpected error.
 """
 
 from __future__ import annotations
@@ -275,8 +279,8 @@ def run_all() -> None:
     flows()
     exposure()
     forecast()
-    hedge()
     backtest()
+    hedge()
     risk()
     report()
 

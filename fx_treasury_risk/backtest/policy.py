@@ -325,7 +325,8 @@ def _store_optimizer_positions(
 
     A row is written for every currency and month, including zero notionals, so that the
     legacy placeholder never fills a month the optimizer has decided on. Positions run
-    from the rebalance date to the next rebalance date (exclusive).
+    from the rebalance date to the next rebalance date (exclusive). ``exposure_group_fx``
+    is rebuilt afterwards so its net-of-hedges columns include them.
     """
     o = dec[dec["policy"] == "optimizer"].sort_values("rebalance").to_dict("records")
     rows: list[tuple[Any, ...]] = []
@@ -341,7 +342,10 @@ def _store_optimizer_positions(
     con.execute("DELETE FROM hedge_positions WHERE source = 'optimizer'")
     if rows:
         con.executemany("INSERT INTO hedge_positions VALUES (?, ?, ?, ?, ?, ?)", rows)
-    log.info("stored %d optimizer hedge positions", len(rows))
+    # exposure_group_fx is a materialised table: rebuild it so the net-of-hedges basis
+    # used by the hedge, risk and report stages reflects the positions just written
+    db.execute_file(con, "090_exposure_group")
+    log.info("stored %d optimizer hedge positions; exposure_group_fx rebuilt", len(rows))
 
 
 def _write_outputs(

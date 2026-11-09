@@ -99,6 +99,9 @@ def run_hedge(paths: config.Paths, hcfg: HedgeConfig | None = None) -> HedgeRun:
     con = db.connect(paths)
     try:
         prob, fwd, expo_fcy, source, as_of = build_problem(con, hcfg)
+        # the policy backtest (run before this stage) records the optimizer's ratios at
+        # every rebalance; today's recommendation starts from the last of them so the
+        # turnover penalty measures change against the position actually in force
         prev = pd.DataFrame()
         if _table_exists(con, "policy_decisions"):
             prev = con.execute(

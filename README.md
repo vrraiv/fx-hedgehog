@@ -74,8 +74,9 @@ hiding it.
                           fxrisk flows    ---->  data/flows.parquet (deterministic, config/flows.yaml)
                           fxrisk exposure ---->  sql/060..090: flows -> components -> waterfall
                           fxrisk forecast ---->  forecast_results/eval/latest; reports/forecast_eval.md + figures
+                          fxrisk backtest ---->  VaR/ES coverage tests; walk-forward policy backtest; writes the
+                                 |              optimizer's monthly positions and rebuilds exposure_group_fx
                           fxrisk hedge    ---->  rates_short, forwards, optimizer; reports/hedge_recommendation.md + frontier
-                          fxrisk backtest ---->  VaR/ES coverage tests; walk-forward policy backtest; reports/*.md + figures
                           fxrisk risk     ---->  risk_results, stress_results; reports/risk_tables.md
                                  v
                           fxrisk report   ---->  reports/decision_report.md (reads the tables above; computes nothing)
@@ -104,13 +105,14 @@ hiding it.
 
 ```bash
 uv sync --all-groups            # Python 3.12 environment from uv.lock
-uv run fxrisk all               # fetch (no-op from cache) -> quality -> flows -> exposure -> forecast -> hedge -> backtest -> risk -> report
+uv run fxrisk all               # fetch (no-op from cache) -> quality -> flows -> exposure -> forecast -> backtest -> hedge -> risk -> report
 uv run pytest                   # 99 tests, no network, about a minute
 ```
 
 Individual stages run in the same order as `all`. Timings on a laptop: quality 3 s,
-flows 2 s, exposure 5 s, forecast 20 s, hedge 5 s, backtest 4 min (ES simulations and
-142 monthly optimizations), risk 40 s (Monte Carlo), report 3 s.
+flows 2 s, exposure 5 s, forecast 20 s, backtest 4 min (ES simulations and 142 monthly
+optimizations), hedge 5 s, risk 40 s (Monte Carlo), report 3 s. Every stage rebuilds
+what it writes, so a second run of `all` reproduces the first exactly.
 
 * A `FRED_API_KEY` in the environment or in a git-ignored `.env` switches the FRED
   loader to the official API; without it the public CSV download is used. Neither is

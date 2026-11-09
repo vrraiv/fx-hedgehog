@@ -39,8 +39,8 @@ STAGES = (
     "flows",
     "exposure",
     "forecast",
-    "hedge",
     "backtest",
+    "hedge",
     "risk",
     "report",
 )
@@ -56,7 +56,7 @@ default_args = {
 
 with DAG(
     dag_id="fxrisk_daily",
-    description="FX treasury risk pipeline: data -> exposure -> forecast -> hedge -> report",
+    description="FX treasury risk: data -> exposure -> forecast -> backtest -> hedge -> report",
     schedule="30 6 * * 1-5",
     start_date=datetime(2026, 1, 1, tzinfo=pendulum.timezone("America/New_York")),
     catchup=False,

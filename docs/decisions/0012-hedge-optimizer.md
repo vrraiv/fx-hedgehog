@@ -38,9 +38,14 @@ down along a line search.
 applied as a post-step: sub-ticket hedges are set to zero and kept out only if the ES
 budget still holds.
 
-**Turnover penalty** is available (``turnover_penalty_bp``) but set to zero in the
-default configuration: the backtest rolls one-month forwards, so the full notional is
-re-dealt each month and the bid-ask term already prices the trading.
+**Turnover penalty** (``turnover_penalty_bp``, 2 bp of the notional changed in the
+default configuration) is a regulariser in the objective only, not a realized cost: the
+backtest rolls one-month forwards, so the full notional is re-dealt each month and the
+bid-ask term already prices the trading. With a hard ES constraint and linear costs the
+optimum is bang-bang, and without the penalty ratios flip between 0 and 1 on carry
+differences of a few basis points when the budget is slack. The penalty is measured
+against the previous month's ratios, which the hedge stage reads from the policy
+backtest's last rebalance (the backtest therefore runs first).
 
 ## Consequences
 

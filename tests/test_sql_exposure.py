@@ -96,6 +96,50 @@ def test_unmapped_flow_type_is_rejected(tmp_paths: config.Paths, mini: MiniTruth
         build_exposure(tmp_paths, flows)
 
 
+def test_optimizer_positions_flow_through_and_exposure_rebuild_resets_them(
+    tmp_paths: config.Paths, mini: MiniTruth
+) -> None:
+    """Stage outputs must not depend on what a previous run left in the database.
+
+    The exposure stage starts from legacy hedges only; storing optimizer positions (the
+    policy backtest's job) replaces the legacy rule for that month and is visible in
+    exposure_group_fx immediately; rebuilding exposure goes back to legacy-only.
+    """
+    from fx_treasury_risk.backtest.policy import _store_optimizer_positions
+
+    db.build_database(tmp_paths).close()
+    rows = [
+        ("2016-12-01", "EA", "EUR", "auth", 100.0),
+        ("2017-01-31", "EA", "EUR", "auth", 0.0),
+    ]
+    flows = _write_flows(tmp_paths.data_dir / "flows.parquet", rows)
+    on = "SELECT net_fcy, net_of_hedges_fcy FROM exposure_group_fx WHERE obs_date = '2017-01-10'"
+
+    con = build_exposure(tmp_paths, flows)
+    try:
+        assert con.execute(on).fetchall()[0] == pytest.approx((100.0, 50.0))  # legacy 50%
+        dec = pd.DataFrame(
+            {
+                "policy": ["optimizer"],
+                "rebalance": [pd.Timestamp("2017-01-03")],
+                "tenor_days": [30],
+                "expo_EUR": [100.0],
+                "h_EUR": [1.0],
+            }
+        )
+        _store_optimizer_positions(con, dec, ["EUR"])
+        assert con.execute(on).fetchall()[0] == pytest.approx((100.0, 0.0))  # full hedge
+    finally:
+        con.close()
+
+    con = build_exposure(tmp_paths, flows)  # a second run of the exposure stage
+    try:
+        assert con.execute("SELECT count(*) FROM hedge_positions").fetchall()[0][0] == 0
+        assert con.execute(on).fetchall()[0] == pytest.approx((100.0, 50.0))
+    finally:
+        con.close()
+
+
 def test_legacy_hedge_is_half_of_last_months_average(
     tmp_paths: config.Paths, mini: MiniTruth
 ) -> None:

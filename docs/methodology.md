@@ -180,7 +180,9 @@ and `exposure_waterfall_by_ccy` sums entities for the group view.
 
 ### 4.3 Existing hedges
 
-`hedge_positions` is the table the optimizer (milestone 3) writes. Until then
+`hedge_positions` holds the optimizer's monthly positions. The exposure stage recreates
+it empty, so its output never depends on a previous run; the policy backtest then writes
+the positions and rebuilds `exposure_group_fx`. For months without optimizer rows
 `hedges_legacy` supplies a placeholder programme: on the first of each month, sell
 forward 50% of last month's average net exposure in each non-USD currency for one month.
 `hedges_all` prefers optimizer rows where they exist.

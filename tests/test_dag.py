@@ -19,8 +19,8 @@ CLI_ORDER = (
     "flows",
     "exposure",
     "forecast",
-    "hedge",
     "backtest",
+    "hedge",
     "risk",
     "report",
 )
