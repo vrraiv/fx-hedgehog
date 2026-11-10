@@ -14,7 +14,10 @@ to the previous trading day, the *origin*:
 Over the following month the realised P&L is computed daily from the *actual* exposure
 path (so forecast error flows into the result), the forward's mark-to-market and carry,
 and the spread paid on the notional dealt. Policies compared: unhedged, legacy 50%,
-full hedge, optimizer.
+full hedge, optimizer. Unhedged, full hedge and the optimizer are ratios of the forecast.
+The legacy programme is the rule a treasury might run by hand, with no forecast: sell
+half of last month's average net exposure. It is defined once, in the ``hedges_legacy``
+view (``sql/075_hedges.sql``), and the backtest reads its notionals from there.
 """
 
 from __future__ import annotations
@@ -34,7 +37,11 @@ from fx_treasury_risk.hedge import plots
 from fx_treasury_risk.hedge.config import HedgeConfig, load_hedge_config
 from fx_treasury_risk.hedge.forwards import forward_rate, hedge_cost_rate
 from fx_treasury_risk.hedge.rates import rates_wide
-from fx_treasury_risk.hedge.sizing import holding_month_by_origin
+from fx_treasury_risk.hedge.sizing import (
+    holding_month_by_origin,
+    legacy_ratios,
+    load_legacy_notionals,
+)
 from fx_treasury_risk.report.tables import df_to_markdown, write_markdown
 from fx_treasury_risk.risk import covariance as cv
 from fx_treasury_risk.risk.returns import fx_returns
@@ -42,7 +49,8 @@ from fx_treasury_risk.risk.var_es import fit_student_df
 
 log = logging.getLogger(__name__)
 
-STATIC_RATIOS = {"unhedged": 0.0, "legacy_50": 0.5, "full_hedge": 1.0}
+STATIC_RATIOS = {"unhedged": 0.0, "full_hedge": 1.0}  # of the forecast exposure
+LEGACY = "legacy_50"
 PNL_COLS = ["pnl_unhedged", "pnl_hedge_mtm", "pnl_carry", "pnl_spread", "pnl_total"]
 
 
@@ -56,6 +64,7 @@ class MarketData:
     exposure_fcy: np.ndarray  # actual net exposure in currency units, n x k
     rates: pd.DataFrame  # short rates in percent, date x ccy (USD included)
     forecast_fcy: pd.DataFrame  # holding-month average median forecast, origin x ccy
+    legacy_fcy: pd.DataFrame  # legacy notional (negative = sold), month start x ccy
     day_count: dict[str, int]
     ccys: list[str]
 
@@ -88,6 +97,7 @@ def load_market_data(con: duckdb.DuckDBPyConnection, ccys: list[str]) -> MarketD
         exposure_fcy=exposure.reindex(calendar, method="ffill")[ccys].to_numpy(dtype=float),
         rates=rates,
         forecast_fcy=forecast,
+        legacy_fcy=load_legacy_notionals(con, ccys),
         day_count=day_count,
         ccys=ccys,
     )
@@ -214,6 +224,9 @@ def run_policy_backtest(
                     h = sol.ratios.to_numpy(dtype=float)
                     prev_ratio = h
                     binding = sol.binding
+                elif policy == LEGACY:
+                    h = legacy_ratios(md.legacy_fcy, d.to_period("M"), expo_fcy)
+                    binding = False
                 else:
                     h = np.full(k, STATIC_RATIOS[policy])
                     binding = False

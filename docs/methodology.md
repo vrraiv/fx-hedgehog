@@ -97,8 +97,11 @@ and passes on fixing-time noise.
 `fxrisk quality` rebuilds DuckDB from the cache and runs: cache completeness, CSV schema,
 staleness (per-series publication-lag limits; cache age is WARN only), cross-source
 reconciliation, master-table completeness, calendar gaps, return outliers (|r| > 6 lagged
-EWMA sigma, WARN only, for human review) and a plausibility range on rates. Failures write
-`reports/alerts.md` and return exit code 1.
+EWMA sigma, WARN only, each checked against the sources the master price did not come
+from) and a plausibility range on rates. The loader also fails if any cached series
+loads a different number of rows than its manifest records. The verdicts are stored in
+`quality_checks` for the decision report; failures write `reports/alerts.md` and return
+exit code 1.
 
 ## 3. Synthetic flows
 
@@ -277,8 +280,9 @@ Code: `fx_treasury_risk/backtest/policy.py`. Design: ADR-0013. Output:
 Walk-forward, monthly rebalance from 2015-01-02, one-month forwards priced by CIP at the
 origin, hedging the median forecast exposure averaged over the month the forward
 covers; realised P&L from the actual
-exposure path, forward mark-to-market, carry and spread. Policies: unhedged, legacy 50%,
-full hedge, optimizer under a fixed USD 4m ES budget. Metrics: P&L volatility (daily
+exposure path, forward mark-to-market, carry and spread. Policies: unhedged, legacy 50%
+(half of last month's average net exposure, the `hedges_legacy` rule of section 4.3, no
+forecast), full hedge, optimizer under a fixed USD 4m ES budget. Metrics: P&L volatility (daily
 annualized and monthly), total P&L, carry and spread per year, maximum drawdown, worst
 month, months with a loss beyond the budget (a loss frequency) and beyond the policy's own
 ex-ante 99% VaR (the model test), share of months in which the budget bound; overall, by

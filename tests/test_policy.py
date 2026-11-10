@@ -6,6 +6,7 @@ import pytest
 
 from fx_treasury_risk.backtest import policy
 from fx_treasury_risk.hedge.config import load_hedge_config
+from fx_treasury_risk.hedge.sizing import legacy_ratios
 
 
 def _market() -> policy.MarketData:
@@ -26,6 +27,7 @@ def _market() -> policy.MarketData:
         exposure_fcy=exposure,
         rates=rates,
         forecast_fcy=forecast,
+        legacy_fcy=pd.DataFrame(columns=["EUR", "JPY"], dtype=float),
         day_count={"USD": 360, "EUR": 360, "JPY": 360},
         ccys=["EUR", "JPY"],
     )
@@ -137,3 +139,15 @@ def test_compare_policies_splits_known_carry_from_spot() -> None:
     assert c["carry_spread_diff_usd"] == pytest.approx(120 * 0.205e6)
     assert c["total_diff_usd"] == pytest.approx(c["carry_spread_diff_usd"] + c["spot_diff_usd"])
     assert 0 <= c["p_value"] <= 1
+
+
+def test_legacy_ratios_reproduce_the_sql_notional() -> None:
+    legacy = pd.DataFrame({"EUR": [-50.0], "JPY": [-600.0]}, index=pd.DatetimeIndex(["2020-03-01"]))
+    expo = np.array([80.0, 1000.0])
+    march = pd.Period("2020-03", freq="M")
+    h = legacy_ratios(legacy, march, expo)
+    np.testing.assert_allclose(-h * expo, [-50.0, -600.0])  # the notional dealt
+    np.testing.assert_allclose(h, [0.625, 0.6])  # not 0.5: last month was larger
+    # no programme that month, and a zero forecast, both mean no hedge
+    assert not legacy_ratios(legacy, march + 1, expo).any()
+    assert legacy_ratios(legacy, march, np.array([0.0, 1000.0]))[0] == 0

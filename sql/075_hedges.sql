@@ -40,16 +40,17 @@ WITH monthly AS (
     GROUP BY ALL
 )
 SELECT
-    month_start                                          AS trade_date,
-    (month_start + INTERVAL 1 MONTH)::DATE               AS maturity_date,
+    -- each month's average decides the hedge dealt on the first of the NEXT month, so the
+    -- last month of data also yields the programme's next trade (the policy backtest and
+    -- the hedge stage read their legacy benchmark from this view; the first month of
+    -- data has no history and therefore no hedge)
+    (month_start + INTERVAL 1 MONTH)::DATE               AS trade_date,
+    (month_start + INTERVAL 2 MONTH)::DATE               AS maturity_date,
     entity,
     ccy,
-    -- lag(): last month's average decides this month's hedge; a hedge of a long exposure
-    -- is a sale, hence the minus sign
-    -0.5 * lag(avg_net_fcy) OVER (PARTITION BY entity, ccy ORDER BY month_start) AS notional_fcy,
+    -0.5 * avg_net_fcy                                   AS notional_fcy,  -- a sale
     'legacy'                                             AS source
-FROM monthly
-QUALIFY notional_fcy IS NOT NULL;      -- the first month has no history to hedge
+FROM monthly;
 
 
 CREATE OR REPLACE VIEW hedges_all AS
