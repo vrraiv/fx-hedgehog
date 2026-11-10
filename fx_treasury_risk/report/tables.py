@@ -74,4 +74,5 @@ def write_markdown(path: Path, title: str, sections: list[tuple[str, str]]) -> N
     parts = [f"# {title}", ""]
     for heading, body in sections:
         parts += [f"## {heading}", "", body, ""]
-    path.write_text("\n".join(parts), encoding="utf-8")
+    # newline="\n": the committed reports must be byte-identical on every platform
+    path.write_text("\n".join(parts), encoding="utf-8", newline="\n")

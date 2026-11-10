@@ -287,18 +287,23 @@ def test_fmt_negative_zero() -> None:
     assert fmt(-0.0004) == "-0.0004" and fmt(-0.01) == "-0.01"
 
 
-def test_parse_quality(tmp_path: Path) -> None:
-    p = tmp_path / "quality_report.md"
-    p.write_text(
-        "# Data quality report\n\nGenerated x - overall **WARN**\n\n"
-        "| check | status | summary |\n|---|---|---|\n| a | PASS | fine |\n| b | WARN | meh |\n\n"
-        "## Details\n\n| check | status | summary |\n| c | FAIL | no |\n",
-        encoding="utf-8",
+def test_load_quality_reads_the_stored_checks() -> None:
+    con = duckdb.connect()
+    assert decision._load_quality(con)[0] == "not run"
+    con.execute(
+        "CREATE TABLE quality_checks AS SELECT * FROM (VALUES "
+        "('a', 'PASS', 'fine'), ('b', 'WARN', 'meh')) AS t(check_name, status, summary)"
     )
-    overall, table = decision._parse_quality(p)
+    overall, table = decision._load_quality(con)
     assert overall == "WARN"
-    assert list(table["check"]) == ["a", "b"]
-    assert decision._parse_quality(tmp_path / "missing.md")[0] == "not run"
+    assert list(table["check"]) == ["a", "b"] and list(table.columns) == [
+        "check",
+        "status",
+        "summary",
+    ]
+    con.execute("INSERT INTO quality_checks VALUES ('c', 'FAIL', 'no')")
+    assert decision._load_quality(con)[0] == "FAIL"
+    con.close()
 
 
 @pytest.mark.skipif(

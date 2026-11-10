@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import SupportsFloat, cast
@@ -119,24 +118,14 @@ def _read(con: duckdb.DuckDBPyConnection, name: str) -> pd.DataFrame:
     return con.execute(f"SELECT * FROM {name}").df()
 
 
-def _parse_quality(path: Path) -> tuple[str, pd.DataFrame]:
-    """Overall status and the summary table of ``reports/quality_report.md``.
-
-    The quality stage writes markdown, not a table, so the report re-reads that file
-    rather than re-running the checks; the summary table is the block before ``## Details``.
-    """
-    if not path.exists():
+def _load_quality(con: duckdb.DuckDBPyConnection) -> tuple[str, pd.DataFrame]:
+    """Overall status and the per-check summary the quality stage stored."""
+    if not db.table_exists(con, "quality_checks"):
         return "not run", pd.DataFrame(columns=["check", "status", "summary"])
-    text = path.read_text(encoding="utf-8")
-    m = re.search(r"overall \*\*(\w+)\*\*", text)
-    overall = m.group(1) if m else "unknown"
-    rows = []
-    for line in text.split("## Details")[0].splitlines():
-        if line.startswith("| ") and not line.startswith("| check") and "---" not in line:
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if len(cells) == 3:
-                rows.append(dict(zip(("check", "status", "summary"), cells, strict=True)))
-    return overall, pd.DataFrame(rows)
+    checks = _read(con, "quality_checks").rename(columns={"check_name": "check"})
+    statuses = set(checks["status"])
+    overall = "FAIL" if "FAIL" in statuses else ("WARN" if "WARN" in statuses else "PASS")
+    return overall, checks
 
 
 def _retrieved_on(paths: config.Paths) -> str:
@@ -156,7 +145,7 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
     con = db.connect(paths)
     try:
         for t in ("hedge_headline", "policy_backtest_summary", "forecast_eval", "risk_results"):
-            if not _table_exists(con, t):
+            if not db.table_exists(con, t):
                 raise RuntimeError(f"table {t} missing: run the earlier stages (`fxrisk all`)")
         db.execute_file(con, "110_report_views")
 
@@ -191,7 +180,7 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         var_backtest = _read(con, "var_backtest_results")
         var_selection = (
             _read(con, "var_model_selection")
-            if _table_exists(con, "var_model_selection")
+            if db.table_exists(con, "var_model_selection")
             else pd.DataFrame()
         )
         rr = _read(con, "risk_results")
@@ -227,9 +216,10 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         pm["month"] = pd.DatetimeIndex(pm["rebalance"]).strftime("%Y-%m")
         policy_months = pm[pm["month"].isin(STRESS_MONTHS)]
         policy_by_year = _read(con, "policy_backtest_by_year")
+        overall, qsum = _load_quality(con)
         policy_comparison = (
             _read(con, "policy_comparison")
-            if _table_exists(con, "policy_comparison")
+            if db.table_exists(con, "policy_comparison")
             else pd.DataFrame()
         )
         dec = _read(con, "policy_decisions")
@@ -240,7 +230,6 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
     finally:
         con.close()
 
-    overall, qsum = _parse_quality(paths.reports_dir / "quality_report.md")
     return ReportData(
         as_of=as_of,
         hcfg=hcfg,
@@ -265,14 +254,6 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         ratios_mean=ratios_mean,
         var_selection=var_selection,
         policy_comparison=policy_comparison,
-    )
-
-
-def _table_exists(con: duckdb.DuckDBPyConnection, name: str) -> bool:
-    return bool(
-        con.execute(
-            "SELECT 1 FROM information_schema.tables WHERE table_name = ?", [name]
-        ).fetchall()
     )
 
 

@@ -104,6 +104,16 @@ class QualityReport:
         """Worst status across all checks."""
         return "FAIL" if self.failed else ("WARN" if self.warned else "PASS")
 
+    def summary_frame(self) -> pd.DataFrame:
+        """One row per check: what the ``quality_checks`` table and the reports show."""
+        return pd.DataFrame(
+            {
+                "check_name": [c.name for c in self.checks],
+                "status": [c.status for c in self.checks],
+                "summary": [c.summary for c in self.checks],
+            }
+        )
+
     def to_markdown(self) -> str:
         """Full report."""
         head = [
@@ -512,6 +522,17 @@ def run_quality(
             con.close()
     if write:
         paths.reports_dir.mkdir(parents=True, exist_ok=True)
-        (paths.reports_dir / "quality_report.md").write_text(report.to_markdown(), encoding="utf-8")
-        (paths.reports_dir / "alerts.md").write_text(report.to_alerts_markdown(), encoding="utf-8")
+        for name, text in (
+            ("quality_report.md", report.to_markdown()),
+            ("alerts.md", report.to_alerts_markdown()),
+        ):
+            (paths.reports_dir / name).write_text(text, encoding="utf-8", newline="\n")
+        # the decision report reads the verdicts from the database, not from the markdown
+        con = db.connect(paths)
+        try:
+            con.register("quality_df", report.summary_frame())
+            con.execute("CREATE OR REPLACE TABLE quality_checks AS SELECT * FROM quality_df")
+            con.unregister("quality_df")
+        finally:
+            con.close()
     return report
