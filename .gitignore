@@ -26,3 +26,6 @@ Thumbs.db
 
 # local env files (API keys)
 .env*
+
+# Claude Code: shared project settings are committed, personal ones are not
+.claude/settings.local.json
