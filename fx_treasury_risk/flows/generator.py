@@ -62,10 +62,15 @@ def _pair_rng(seed: int, entity: str, ccy: str) -> np.random.Generator:
 
 
 def _ar1_noise(rng: np.random.Generator, n: int, sigma: float, rho: float) -> np.ndarray:
-    """Mean-one lognormal multiplier with AR(1) log-noise of stationary s.d. ``sigma``."""
+    """Mean-one lognormal multiplier with AR(1) log-noise of stationary s.d. ``sigma``.
+
+    The starting value is drawn before the innovations so that the first ``m`` values do
+    not depend on ``n``: extending the horizon appends to the path without rewriting it.
+    """
+    e0 = rng.standard_normal() * sigma
     eps = rng.standard_normal(n) * sigma * np.sqrt(1 - rho**2)
     e = np.empty(n)
-    e[0] = rng.standard_normal() * sigma
+    e[0] = e0
     for t in range(1, n):  # short loop; n ~ 6,000
         e[t] = rho * e[t - 1] + eps[t]
     return np.exp(e - 0.5 * sigma**2)
@@ -214,8 +219,12 @@ def generate(cfg: FlowConfig, annual_profiles: dict[str, np.ndarray]) -> pd.Data
     """All flows for all pairs plus intercompany, sorted, long format.
 
     Columns: ``date`` (calendar day), ``entity``, ``ccy``, ``flow_type``, ``amount`` (in
-    ``ccy``, positive magnitude).
+    ``ccy``, positive magnitude). ``cfg.end`` must be resolved (see
+    :func:`fx_treasury_risk.flows.pipeline.resolve_end`). Flows on any date depend only on
+    earlier dates, so a later ``end`` appends flows without changing earlier ones.
     """
+    if cfg.end is None:
+        raise ValueError("flow config end date is unresolved ('auto'); call resolve_end first")
     days = pd.date_range(cfg.start, cfg.end, freq="D")
     frames = [
         generate_pair(cfg, e, c, annual_profiles[cfg.annual_profile_by_entity[e]], days)

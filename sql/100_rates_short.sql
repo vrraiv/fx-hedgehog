@@ -3,9 +3,14 @@
 --
 -- Source precedence per currency (ADR-0006): a primary market rate (3-month where FRED
 -- carries one), falling back to the BIS daily policy rate when the primary is more than
--- 120 days stale. Monthly series are carried forward to daily with an ASOF JOIN: for each
--- calendar date take the latest observation on or before it. SGD has no public rate and
--- is proxied by the USD rate, flagged is_proxy = true.
+-- 120 days stale. Rates are carried forward to daily with an ASOF JOIN on the date each
+-- observation became AVAILABLE, not the date it describes: an OECD monthly rate is the
+-- average of its month and is dated the 1st, so it is usable only from the 1st of the
+-- following month. Joining on the reference date would let a backtest price a forward
+-- with an average of days that had not happened yet. (Publication takes a few weeks
+-- more; that residual lag is stated in ADR-0006, not modelled.) Daily series are
+-- available on their own date. SGD has no public rate and is proxied by the USD rate,
+-- flagged is_proxy = true.
 --
 -- Rates are in percent per annum as published; `basis` says how to read them
 -- ('discount' for US T-bills, which Python converts to a simple yield; see the primer).
@@ -48,13 +53,19 @@ WITH calendar AS (
     SELECT DISTINCT obs_date FROM fx_usd_master
 ),
 obs AS (
-    -- every observation of every candidate series, with its metadata attached
+    -- every observation of every candidate series, with its metadata attached and the
+    -- first date on which it could have been known
     SELECT
         r.ccy, r.rank, r.source, r.series_id, r.tenor_months, r.day_count, r.basis,
         o.obs_date AS rate_date,
+        CASE WHEN c.frequency = 'monthly'
+             THEN (o.obs_date + INTERVAL 1 MONTH)::DATE
+             ELSE o.obs_date
+        END        AS available_date,
         o.value    AS rate_pct
     FROM rate_sources     AS r
     JOIN raw_observations AS o USING (source, series_id)
+    JOIN series_catalog   AS c USING (source, series_id)
 ),
 grid AS (
     -- one row per (date, ccy, rank): the ASOF JOIN below needs the partition keys on
@@ -64,7 +75,8 @@ grid AS (
     CROSS JOIN (SELECT DISTINCT ccy, rank FROM rate_sources) AS r
 ),
 latest AS (
-    -- latest observation on or before each date, per currency and rank
+    -- latest observation AVAILABLE on or before each date, per currency and rank;
+    -- days_stale is the age of the period it describes (from its reference date)
     SELECT
         g.obs_date, g.ccy, g.rank,
         o.source, o.series_id, o.tenor_months, o.day_count, o.basis,
@@ -74,7 +86,7 @@ latest AS (
     ASOF LEFT JOIN obs AS o
       ON o.ccy = g.ccy
      AND o.rank = g.rank
-     AND o.rate_date <= g.obs_date
+     AND o.available_date <= g.obs_date
 ),
 chosen AS (
     -- precedence: fresh primary, then fallback, then a stale primary rather than nothing

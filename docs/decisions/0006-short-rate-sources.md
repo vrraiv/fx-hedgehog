@@ -35,7 +35,12 @@ earlier version but never used and has been dropped from the registry.
 
 Rules, implemented in the `rates_short` table (`sql/100_rates_short.sql`):
 
-1. Monthly rates are carried forward to daily with an `ASOF JOIN` on the master calendar.
+1. Rates are carried forward to daily with an `ASOF JOIN` on the master calendar, keyed
+   on the date each observation became available. A monthly OECD rate is the average of
+   its month and is dated the 1st, so it is used only from the 1st of the following
+   month; daily series are used from their own date. (An earlier version joined on the
+   reference date, which let the backtest price a forward with an average that included
+   days after the trade.)
 2. If the primary series' last observation is older than 120 days at the valuation date,
    the daily BIS policy rate is used instead and the row is flagged `is_fallback = true`
    (with `source = 'bis'` and the BIS series id).
@@ -50,5 +55,7 @@ Rules, implemented in the `rates_short` table (`sql/100_rates_short.sql`):
   stated in the report's limitations section. Backlog B1 replaces the proxy.
 * Using an overnight rate for BRL/INR at a one-month tenor ignores the term premium;
   given Selic and repo levels of 6-15%, the error is a few tens of bp of annualized carry.
-* A monthly average rate forward-filled is stale by up to a month plus publication lag;
-  the fallback rule bounds the lag at 120 days.
+* A monthly average describes a month that is over by the time it is used, so the rate
+  pricing a forward is between one and two months old. The OECD's actual publication
+  lag (a few more weeks) is not modelled: a fully real-time backtest would need the
+  vintages FRED keeps in ALFRED. The fallback rule bounds the staleness at 120 days.

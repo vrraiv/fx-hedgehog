@@ -10,7 +10,11 @@
 
 seed: 20260101
 start: 2010-01-01
-end: 2026-10-31
+# 'auto' = the last calendar day of the month containing the latest FX fixing in the
+# cache, so a data refresh moves the report date forward. Flows are generated to a month
+# end because the fee sweep falls on the last business day of each month: stopping
+# mid-month would put a spurious sweep on the final day. A fixed date is also accepted.
+end: auto
 
 take_rate: 0.025            # fee retained by the business, as a share of receipts
 
