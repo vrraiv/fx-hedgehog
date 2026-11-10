@@ -1,23 +1,23 @@
 # Data quality report
 
-Generated 2026-11-07 01:15 UTC - overall **WARN**
+Generated 2026-11-09 23:31 UTC - overall **WARN**
 
 | check | status | summary |
 |---|---|---|
-| cache_complete | PASS | all 78 registered series cached |
+| cache_complete | PASS | all 77 registered series cached |
 | schema | PASS | all cached files well-formed |
 | staleness | WARN | 2 series stale or lagging |
 | reconciliation | PASS | all 20 currency/source pairs within tolerance |
 | master_completeness | PASS | 0 NULL cells across 10 currencies; 1 cells filled from BoC/ECB |
 | calendar | PASS | no gaps longer than 6 calendar days |
 | return_outliers | WARN | 33 daily moves beyond 6 EWMA sigma (review, not necessarily errors) |
-| rates_range | PASS | all 23 rate series within [-2.0, 40.0] percent |
+| rates_range | PASS | all 22 rate series within [-2.0, 40.0] percent |
 
 ## Details
 
 ### cache_complete - **PASS**
 
-all 78 registered series cached
+all 77 registered series cached
 
 ### schema - **PASS**
 
@@ -114,7 +114,7 @@ no gaps longer than 6 calendar days
 
 ### rates_range - **PASS**
 
-all 23 rate series within [-2.0, 40.0] percent
+all 22 rate series within [-2.0, 40.0] percent
 
 | source | series_id | ccy | min_pct | max_pct | last_date |
 |---|---|---|---|---|---|
@@ -129,7 +129,6 @@ all 23 rate series within [-2.0, 40.0] percent
 | bis | D.US | USD | 0.12 | 5.38 | 2026-11-03 |
 | bis | D.XM | EUR | 0 | 4.5 | 2026-11-03 |
 | boc | TB.CDN.90D.MID | CAD | 0 | 5.12 | 2026-11-04 |
-| boc | V39079 | CAD | 0.25 | 5 | 2026-11-04 |
 | fred | DTB3 | USD | -0.05 | 5.36 | 2026-11-04 |
 | fred | IR3TIB01AUM156N | AUD | 0.01 | 5.03 | 2026-08-01 |
 | fred | IR3TIB01CAM156N | CAD | 0.06 | 5.08 | 2026-09-01 |

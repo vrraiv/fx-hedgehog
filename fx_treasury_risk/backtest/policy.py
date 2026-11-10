@@ -277,13 +277,22 @@ def _monthly(daily: pd.DataFrame, dec: pd.DataFrame) -> pd.DataFrame:
     return m.merge(dec[keep], on=["policy", "rebalance"])
 
 
+def max_drawdown(pnl: np.ndarray) -> float:
+    """Largest fall of cumulative P&L from its running peak, starting from zero.
+
+    The peak includes the starting point (cumulative P&L of zero before the first day),
+    so a book that loses from day one has a drawdown equal to its lowest cumulative P&L.
+    Returned as a non-positive number.
+    """
+    cum = np.concatenate([[0.0], np.cumsum(pnl)])
+    return float((cum - np.maximum.accumulate(cum)).min())
+
+
 def _summary(daily: pd.DataFrame, monthly: pd.DataFrame, budget: float) -> pd.DataFrame:
     rows = []
     years = (daily["date"].max() - daily["date"].min()).days / 365.25
     for policy, g in daily.groupby("policy"):
         g = g.sort_values("date")
-        cum = g["pnl_total"].cumsum()
-        dd = cum - cum.cummax()
         m = monthly[monthly["policy"] == policy]
         rows.append(
             {
@@ -293,7 +302,7 @@ def _summary(daily: pd.DataFrame, monthly: pd.DataFrame, budget: float) -> pd.Da
                 "total_pnl_usd": float(g["pnl_total"].sum()),
                 "carry_per_year_usd": float(g["pnl_carry"].sum() / years),
                 "spread_per_year_usd": float(g["pnl_spread"].sum() / years),
-                "max_drawdown_usd": float(dd.min()),
+                "max_drawdown_usd": max_drawdown(g["pnl_total"].to_numpy(dtype=float)),
                 "worst_month_usd": float(m["pnl_total"].min()),
                 "months_loss_gt_budget": int((m["pnl_total"] < -budget).sum()),
                 "n_months": len(m),
@@ -325,7 +334,8 @@ def _store_optimizer_positions(
 
     A row is written for every currency and month, including zero notionals, so that the
     legacy placeholder never fills a month the optimizer has decided on. Positions run
-    from the rebalance date to the next rebalance date (exclusive).
+    from the rebalance date to the next rebalance date (exclusive). ``exposure_group_fx``
+    is rebuilt afterwards so its net-of-hedges columns include them.
     """
     o = dec[dec["policy"] == "optimizer"].sort_values("rebalance").to_dict("records")
     rows: list[tuple[Any, ...]] = []
@@ -341,7 +351,10 @@ def _store_optimizer_positions(
     con.execute("DELETE FROM hedge_positions WHERE source = 'optimizer'")
     if rows:
         con.executemany("INSERT INTO hedge_positions VALUES (?, ?, ?, ?, ?, ?)", rows)
-    log.info("stored %d optimizer hedge positions", len(rows))
+    # exposure_group_fx is a materialised table: rebuild it so the net-of-hedges basis
+    # used by the hedge, risk and report stages reflects the positions just written
+    db.execute_file(con, "090_exposure_group")
+    log.info("stored %d optimizer hedge positions; exposure_group_fx rebuilt", len(rows))
 
 
 def _write_outputs(

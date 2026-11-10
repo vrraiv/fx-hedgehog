@@ -606,7 +606,7 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
         (
             "Reproducing this report",
             "```bash\nuv sync --all-groups\nuv run fxrisk all      # fetch (cache) -> quality -> "
-            "flows -> exposure -> forecast -> hedge -> backtest -> risk -> report\n```\n\n"
+            "flows -> exposure -> forecast -> backtest -> hedge -> risk -> report\n```\n\n"
             "Every number above is read from the DuckDB tables the stages write "
             "(`data/fxrisk.duckdb`); `fxrisk report` recomputes nothing. Inputs: "
             "`config/flows.yaml` (the stylized business), `config/hedge.yaml` (budget, costs, "

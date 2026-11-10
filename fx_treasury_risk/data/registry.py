@@ -306,15 +306,6 @@ _BOC_FX: list[SeriesSpec] = [
 _BOC_RATES: list[SeriesSpec] = [
     SeriesSpec(
         "boc",
-        "V39079",
-        "policy_rate",
-        "CAD",
-        "Bank of Canada target for the overnight rate",
-        unit="percent",
-        tenor_months=0,
-    ),
-    SeriesSpec(
-        "boc",
         "TB.CDN.90D.MID",
         "rate",
         "CAD",

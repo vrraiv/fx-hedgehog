@@ -22,19 +22,24 @@ forward-fill. Probing on 2026-11-05 found:
 
 | Currency | Primary (tenor) | Fallback | Frequency |
 |---|---|---|---|
-| USD | FRED `DTB3` (3m, discount basis, converted) | `SOFR` | daily |
-| CAD | BoC `TB.CDN.90D.MID` (3m) | BoC `V39079` policy | daily |
+| USD | FRED `DTB3` (3m, discount basis, converted over the bill's 91 days) | `SOFR` | daily |
+| CAD | BoC `TB.CDN.90D.MID` (3m) | BIS policy rate | daily |
 | EUR, GBP, JPY, AUD, CHF, MXN | FRED OECD `IR3TIB01*` (3m) | BIS policy rate | monthly, forward-filled |
 | BRL, INR | FRED OECD `IRSTCI01*` (overnight) | BIS policy rate | monthly, forward-filled |
 | SGD | **USD rate as proxy**, flagged `is_proxy = true` | none | daily |
 
-Rules, implemented in the `rates_short` SQL view (milestone 3):
+Every non-USD currency falls back to the same family of series (BIS `WS_CBPOL`), so the
+fallback rule is uniform. The Bank of Canada's own policy-rate series was fetched in an
+earlier version but never used and has been dropped from the registry.
+
+Rules, implemented in the `rates_short` table (`sql/100_rates_short.sql`):
 
 1. Monthly rates are carried forward to daily with an `ASOF JOIN` on the master calendar.
 2. If the primary series' last observation is older than 120 days at the valuation date,
-   the daily BIS policy rate is used instead and the row is flagged `source = 'bis_policy'`.
-3. Every row carries `tenor_months` and `is_proxy` so the report can state exactly which
-   rate priced each forward.
+   the daily BIS policy rate is used instead and the row is flagged `is_fallback = true`
+   (with `source = 'bis'` and the BIS series id).
+3. Every row carries `source`, `series_id`, `tenor_months`, `days_stale`, `is_proxy` and
+   `is_fallback`, so the report can state exactly which rate priced each forward.
 
 ## Consequences
 
