@@ -87,7 +87,7 @@ hiding it.
 |---|---|---|
 | Loaders and cache | `fx_treasury_risk/data/` | one thin loader per source, CSV cache with provenance manifest, offline guard, quality checks |
 | Flows | `fx_treasury_risk/flows/`, `config/flows.yaml` | deterministic synthetic merchant flows; annual seasonality calibrated to public retail sales |
-| SQL | `sql/*.sql` | every transformation, loaded by file name, commented for a reader learning SQL |
+| SQL | `sql/*.sql` | every transformation, loaded by file name; each file states what it builds and why |
 | Exposure | `sql/060-090`, `fx_treasury_risk/exposure/` | running-sum positions by component, USD translation, gross / net / net-of-hedges waterfall |
 | Risk | `fx_treasury_risk/risk/` | returns, sample / EWMA / Ledoit-Wolf covariance, historical / normal / Student-t / t-copula Monte Carlo VaR and ES, stress |
 | Forecast | `fx_treasury_risk/forecast/` | seasonal naive and calendar-structural AR(1) exposure forecasts, rolling-origin evaluation, calibration figures |
