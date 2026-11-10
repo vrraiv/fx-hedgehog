@@ -250,6 +250,25 @@ def test_sections_answer_first_and_figures_referenced(tmp_path: Path) -> None:
     assert "86%" in body  # the interval coverage is stated
 
 
+def test_fixed_decimals_and_readable_labels(tmp_path: Path) -> None:
+    from fx_treasury_risk.report.tables import df_to_markdown, fmt_fixed
+
+    assert fmt_fixed(1.0, 2) == "1.00" and fmt_fixed(-0.04, 1) == "0.0"
+    assert fmt_fixed(1234.5, 1) == "1,234.5" and fmt_fixed(3, 1) == "3"
+    md = df_to_markdown(pd.DataFrame({"a": [1.0], "b": [0.5]}), decimals={"a": 2})
+    assert "| 1.00 | 0.5 |" in md
+    d = _data(tmp_path)
+    assert list(decision._risk_table(d)["model"]) == ["Student-t, EWMA 0.94"]
+    assert decision._waterfall_table(d)["ccy"].iloc[-1] == decision.TOTAL_LABEL
+    # one sign convention: the backtest stores carry as P&L, the report shows it as cost
+    s = decision._summary_table(d).set_index("policy")
+    raw = d.policy_summary.set_index("policy")
+    opt = raw.loc["optimizer"]
+    assert s.loc["optimizer", decision.HEDGING_COST] == pytest.approx(
+        -(opt["carry_per_year_usd"] + opt["spread_per_year_usd"]) / 1e6
+    )
+
+
 def test_stress_month_table_is_months_by_policy(tmp_path: Path) -> None:
     tbl = decision._stress_month_table(_data(tmp_path))
     assert list(tbl.columns) == [

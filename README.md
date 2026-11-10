@@ -30,12 +30,12 @@ BRL at 9.7% a year and MXN at 2.8%.
 **Out of sample, 2015 to 2026, monthly rebalance, 142 months
 (`reports/policy_backtest.md`):**
 
-| policy | P&L vol (USD m / yr) | total FX P&L (USD m) | carry + spread per year | max drawdown | months with loss beyond budget |
+| policy | P&L vol (USD m / yr) | total FX P&L (USD m) | hedging cost per year (+ = cost) | max drawdown | months with loss beyond budget |
 |---|---|---|---|---|---|
-| unhedged | 20.5 | -36.3 | 0 | -74.5 | 39 |
-| legacy 50% | 11.4 | -18.8 | -0.8 | -47.1 | 21 |
-| full hedge | 7.0 | -1.4 | -1.5 | -21.7 | 2 |
-| optimizer, USD 4m ES budget | 8.2 | +10.1 | +1.9 | -19.0 | 5 |
+| unhedged | 20.5 | -36.3 | 0.0 | -74.5 | 39 |
+| legacy 50% | 11.4 | -18.8 | 0.8 | -47.1 | 21 |
+| full hedge | 7.0 | -1.4 | 1.5 | -21.7 | 2 |
+| optimizer, USD 4m ES budget | 8.2 | 10.1 | -1.9 | -19.0 | 5 |
 
 In March 2020 the optimizer lost USD 5.7m against an ex-ante budget of 4m, and in
 September 2022 USD 4.9m: the budget covers the risk of the hedged *forecast* exposure,
