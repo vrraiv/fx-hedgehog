@@ -271,7 +271,8 @@ Code: `fx_treasury_risk/backtest/policy.py`. Design: ADR-0013. Output:
 `reports/policy_backtest.md` and three figures.
 
 Walk-forward, monthly rebalance from 2015-01-02, one-month forwards priced by CIP at the
-origin, hedging the 21-day-ahead forecast exposure; realised P&L from the actual
+origin, hedging the median forecast exposure averaged over the month the forward
+covers; realised P&L from the actual
 exposure path, forward mark-to-market, carry and spread. Policies: unhedged, legacy 50%,
 full hedge, optimizer under a fixed USD 4m ES budget. Metrics: P&L volatility (daily
 annualized and monthly), total P&L, carry and spread per year, maximum drawdown, worst

@@ -73,3 +73,30 @@ def test_hedge_config_loads() -> None:
     assert set(c.bid_ask_bp) >= {"EUR", "BRL", "SGD"}
     assert c.policies[-1] == "optimizer"
     assert len(c.spread_vector(["EUR", "XXX"])) == 2
+
+
+def test_hedge_is_sized_on_the_average_over_its_holding_month() -> None:
+    """A forward dealt after a month-end origin covers the next month's trading days."""
+    from fx_treasury_risk.hedge.sizing import holding_month_by_origin, holding_month_mean
+
+    origin = pd.Timestamp("2021-01-29")
+    days = pd.bdate_range("2021-02-01", periods=30)  # runs into March
+    # exposure 100 on ordinary days, 40 on the last trading day of February
+    eur = pd.Series(100.0, index=days)
+    eur[pd.Timestamp("2021-02-26")] = 40.0
+    medians = pd.DataFrame({"EUR": eur})
+    feb = days[days.month == 2]
+    expected = (100.0 * (len(feb) - 1) + 40.0) / len(feb)
+    assert holding_month_mean(medians, origin)["EUR"] == pytest.approx(expected)
+    # March forecasts are outside the holding month and are ignored
+    medians.loc[days.month == 3, "EUR"] = 1e9
+    assert holding_month_mean(medians, origin)["EUR"] == pytest.approx(expected)
+    # the long-format version used by the backtest gives the same answer
+    long = medians.reset_index(names="target_date").melt(
+        id_vars="target_date", var_name="ccy", value_name="q500"
+    )
+    long.insert(0, "origin", origin)
+    by_origin = holding_month_by_origin(long)
+    assert by_origin.loc[origin, "EUR"] == pytest.approx(expected)
+    with pytest.raises(ValueError, match="holding month"):
+        holding_month_mean(medians, pd.Timestamp("2021-06-30"))

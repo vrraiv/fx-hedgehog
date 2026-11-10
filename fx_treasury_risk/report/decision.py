@@ -605,9 +605,9 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             f"{biggest['ccy']} at USD {biggest['net_usd_m']:,.1f}m. A negative net-of-hedges "
             "figure on a month-end is expected: exposure in the synthetic business dips on the "
             "last day of the month when fees are swept and weekly payouts land, while the "
-            "forward in force was sized on the forecast for the policy's 21-day target date "
-            "and runs until the next rebalance (ADR-0013; the history figure plots monthly "
-            "averages for that reason).\n\n"
+            "forward in force was sized on the average forecast over the whole month and runs "
+            "until the next rebalance (ADR-0013; the history figure plots monthly averages for "
+            "that reason).\n\n"
             + df_to_markdown(_waterfall_table(d), decimals=1)
             + "\n\n"
             + _fig(figs, "waterfall", "exposure waterfall")
@@ -717,10 +717,11 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
         (
             "Out-of-sample policy performance, 2015 to the present",
             f"Walk-forward backtest, monthly rebalance from {d.hcfg.oos_start}, one-month "
-            "forwards priced by covered interest parity at each origin, hedging the "
-            f"{d.hcfg.horizon_days}-day forecast; P&L marked on the actual daily exposure path "
-            "with forward mark-to-market, carry accrual and spread (ADR-0013). No look-ahead: "
-            "covariance, tail index, rates and forecasts use data up to the origin only.\n\n"
+            "forwards priced by covered interest parity at each origin, hedging the median "
+            "forecast averaged over the month each forward covers; P&L marked on the actual "
+            "daily exposure path with forward mark-to-market, carry accrual and spread "
+            "(ADR-0013). No look-ahead: covariance, tail index, rates and forecasts use data "
+            "up to the origin only.\n\n"
             + df_to_markdown(_summary_table(d), decimals=SUMMARY_DECIMALS)
             + "\n\nUSD m. Hedging cost is carry plus bid-ask spread per year, positive when "
             "the hedges cost money, the same convention as the frontier above."

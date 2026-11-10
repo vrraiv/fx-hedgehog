@@ -209,9 +209,9 @@ optimizer's monthly positions replace it in the waterfall and the risk engine. D
 * **Forecast intervals are about 10% too narrow** (ADR-0011, backlog B16) and the ES
   budget covers only the hedged forecast exposure, not forecast error or intra-month
   exposure swings (ADR-0013).
-* **The hedge is sized on the point forecast at the 21-day target date.** Exposure dips
-  on the last day of every month, so the forward over-hedges month-ends and under-hedges
-  mid-month; sizing on the average forecast over the holding period is backlog B19.
+* **One hedge per month.** Each forward is sized on the average forecast exposure over
+  the month it covers, so it under-hedges days above that average and over-hedges the
+  month-end dip; an intra-month adjustment rule is backlog B17.
 * **Carry is an expected cost** under a random-walk spot; realized hedging cost in the
   backtest includes the spot move (hedging primer, section 3).
 * **Stylized transaction costs** (one-way spreads from 0.5 bp to 8 bp) and no

@@ -43,5 +43,5 @@ turnover_penalty_bp: 2.0
 # Walk-forward policy backtest.
 oos_start: 2015-01-01
 rebalance: monthly          # first NY business day of each month
-exposure_input: forecast    # 'forecast' = 21-day-ahead median from the forecast model; 'actual' = exposure on the rebalance date
+exposure_input: forecast    # 'forecast' = median forecast averaged over the holding month; 'actual' = exposure on the rebalance date
 policies: [unhedged, legacy_50, full_hedge, optimizer]
