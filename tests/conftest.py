@@ -2,7 +2,8 @@
 
 The mini cache contains three FX sources (FRED, BoC current + legacy, ECB) for EUR, JPY
 and CAD built from one set of "true" USD rates, so every SQL conversion can be checked
-against a hand-computed number. It also holds two rate series so the rates check runs.
+against a hand-computed number. It also holds three policy-rate series (USD, CAD and the
+ECB deposit rate) so the rates table and the rates check run.
 """
 
 from __future__ import annotations
@@ -24,14 +25,15 @@ MINI_KEYS = [
     "fred:DEXUSEU",
     "fred:DEXJPUS",
     "fred:DEXCAUS",
-    "fred:DTB3",
+    "bis:D.US",
+    "bis:D.CA",
+    "ecb:FM.D.U2.EUR.4F.KR.DFR.LEV",
     "boc:FXUSDCAD",
     "boc:FXEURCAD",
     "boc:FXJPYCAD",
     "boc:IEXE0101",
     "boc:EUROCAE01",
     "boc:IEXE0701",
-    "boc:TB.CDN.90D.MID",
     "ecb:D.USD.EUR.SP00.A",
     "ecb:D.JPY.EUR.SP00.A",
     "ecb:D.CAD.EUR.SP00.A",
@@ -72,7 +74,9 @@ def build_mini_cache(cache_dir: Path, *, fred_gap_dates: list[str] | None = None
     cache.write("fred", "DEXUSEU", usd_per_eur[fred_dates], url=url)
     cache.write("fred", "DEXJPUS", 1 / usd_per_jpy[fred_dates], url=url)
     cache.write("fred", "DEXCAUS", cad_per_usd[fred_dates], url=url)
-    cache.write("fred", "DTB3", pd.Series(0.5, index=dates), url=url)
+    cache.write("bis", "D.US", pd.Series(0.5, index=dates), url=url)
+    cache.write("bis", "D.CA", pd.Series(0.48, index=dates), url=url)
+    cache.write("ecb", "FM.D.U2.EUR.4F.KR.DFR.LEV", pd.Series(-0.4, index=dates), url=url)
 
     cache.write("boc", "FXUSDCAD", cad_per_usd[current_dates], url=url)
     cache.write("boc", "FXEURCAD", (usd_per_eur * cad_per_usd)[current_dates], url=url)
@@ -80,7 +84,6 @@ def build_mini_cache(cache_dir: Path, *, fred_gap_dates: list[str] | None = None
     cache.write("boc", "IEXE0101", (cad_per_usd * bump)[legacy_dates], url=url)
     cache.write("boc", "EUROCAE01", (usd_per_eur * cad_per_usd * bump)[legacy_dates], url=url)
     cache.write("boc", "IEXE0701", (usd_per_jpy * cad_per_usd * bump)[legacy_dates], url=url)
-    cache.write("boc", "TB.CDN.90D.MID", pd.Series(0.48, index=dates), url=url)
 
     cache.write("ecb", "D.USD.EUR.SP00.A", usd_per_eur, url=url)
     cache.write("ecb", "D.JPY.EUR.SP00.A", usd_per_eur / usd_per_jpy, url=url)

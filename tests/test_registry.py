@@ -34,9 +34,7 @@ def test_bridge_series_present() -> None:
 
 
 def test_short_rate_coverage() -> None:
-    # SGD has no public short-rate source (ADR-0006); every other currency has one
-    covered = {s.ccy for s in registry.select(category="rate")} | {
-        s.ccy for s in registry.select(category="policy_rate")
-    }
+    # every currency is priced off a policy rate except SGD, which has none (ADR-0015)
+    covered = {s.ccy for s in registry.select(category="policy_rate")}
     assert set(config.EXPOSURE_CCYS) - covered == {"SGD"}
     assert "USD" in covered

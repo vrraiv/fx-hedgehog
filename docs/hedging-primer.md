@@ -61,12 +61,6 @@ the one-month tenor the policy uses. The code applies the convention per currenc
 252-business-day compounded basis; treating them as simple ACT/365 at one month
 overstates the carry by a few basis points, which is noted rather than modelled.
 
-### Discount-basis T-bills
-
-FRED `DTB3` is quoted on a *bank discount* basis. The simple yield used in CIP is
-`y = d / (1 - d * tau)` where `d` is the discount rate; at `d = 5%` and `tau = 0.25` this
-is 5.06%. The conversion is applied before pricing.
-
 ## 3. Carry: the cost of hedging
 
 Selling FCY forward instead of spot earns (or pays) the forward points. Over the hedge
@@ -155,10 +149,11 @@ money, in the order of their cost per unit of risk removed. In the current data 
 why EUR, GBP, CAD, JPY, CHF and SGD are always at 100% and the budget is consumed by
 BRL, MXN and INR (section 3: high-yielders cost carry).
 
-A 2 bp turnover penalty on the change in notional since the previous month is added to
-the objective only, so that ratios do not flip between 0 and 1 when two currencies'
-costs are within rounding of each other and the budget is slack; it is not a realized
-cost in the backtest.
+A 10 bp turnover penalty on the change in notional since the previous month is added to
+the objective only, as a preference for a stable programme: with linear costs the
+optimizer otherwise moves the whole budget between currencies (MXN and AUD in the
+backtest) on small changes in volatility. It is not a realized cost in the backtest, and
+ADR-0012 shows it leaves P&L, volatility and cost essentially unchanged.
 
 ## 7. Reading the frontier
 

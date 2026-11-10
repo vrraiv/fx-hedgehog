@@ -13,8 +13,14 @@ the ES budget.
 
 * **Cadence:** monthly, on the first NY business day; one-month forwards dealt at the
   previous close (the origin) and held to the next rebalance. No intra-month adjustment.
-* **Exposure input: the 21-day-ahead median forecast** from ADR-0011 at the origin
-  (``exposure_input: forecast``). The realised P&L uses the *actual* daily exposure path,
+* **Exposure input: the median forecast from ADR-0011 at the origin, averaged over the
+  trading days of the month the forward covers** (``exposure_input: forecast``,
+  ``hedge/sizing.py``). A forward is in force for the whole month, so it is sized on the
+  month, not on one day. An earlier version hedged the single forecast 21 trading days
+  out, whose date falls on any weekday and near the month-end dip: the EUR forward then
+  ranged from 0.36 to 2.05 times the month's average EUR exposure. The realised P&L uses
+  the *actual*
+  daily exposure path,
   so forecast error is a cost of the policy, not an assumption. ``actual`` (hedge what
   you hold at the origin) is available as a switch.
 * **Information set:** EWMA(0.94) covariance and Student-t tail index from data up to

@@ -54,7 +54,8 @@ adjustment from past out-of-sample errors is backlog B16.
 
 ## Consequences
 
-* The policy backtest hedges the 21-day-ahead median; forecast error then flows into the
+* The policy backtest hedges the median averaged over the holding month (ADR-0013),
+  which uses every horizon from about 1 to 23 trading days; forecast error then flows into the
   realised P&L, which is the honest way to use a forecast in a hedge test.
 * The report must say that intervals are somewhat narrow rather than present them as
   calibrated.

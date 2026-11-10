@@ -425,12 +425,12 @@ def check_return_outliers(con: duckdb.DuckDBPyConnection) -> CheckResult:
 
 
 def check_rates_range(con: duckdb.DuckDBPyConnection) -> CheckResult:
-    """Short and policy rates must sit in a plausible percent range (catches unit errors)."""
+    """Policy rates must sit in a plausible percent range (catches unit errors)."""
     q = """
         SELECT o.source, o.series_id, c.ccy,
                min(o.value) AS min_pct, max(o.value) AS max_pct, max(o.obs_date) AS last_date
         FROM raw_observations o JOIN series_catalog c USING (source, series_id)
-        WHERE c.category IN ('rate', 'policy_rate')
+        WHERE c.category = 'policy_rate'
         GROUP BY ALL ORDER BY ALL
     """
     ev = con.execute(q).df()

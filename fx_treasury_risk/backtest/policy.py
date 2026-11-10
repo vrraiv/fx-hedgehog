@@ -3,8 +3,9 @@
 At each rebalance date (first NY business day of the month) the policy sees only data up
 to the previous trading day, the *origin*:
 
-* exposure to hedge: the 21-day-ahead median forecast of net exposure per currency from
-  the ``calendar_ar1`` model at that origin (``exposure_input: forecast``), or the actual
+* exposure to hedge: the median forecast of net exposure per currency from the
+  ``calendar_ar1`` model at that origin, averaged over the trading days of the month the
+  forward covers (``exposure_input: forecast``; see ``hedge/sizing.py``), or the actual
   exposure at the origin (``actual``);
 * risk model: EWMA(lambda) covariance of daily log returns up to the origin and a
   Student-t tail index fitted on the trailing window;
@@ -32,6 +33,7 @@ from fx_treasury_risk.hedge import plots
 from fx_treasury_risk.hedge.config import HedgeConfig, load_hedge_config
 from fx_treasury_risk.hedge.forwards import forward_rate, hedge_cost_rate
 from fx_treasury_risk.hedge.rates import rates_wide
+from fx_treasury_risk.hedge.sizing import holding_month_by_origin
 from fx_treasury_risk.report.tables import df_to_markdown, write_markdown
 from fx_treasury_risk.risk import covariance as cv
 from fx_treasury_risk.risk.returns import fx_returns
@@ -52,7 +54,7 @@ class MarketData:
     returns: np.ndarray  # daily log returns, n x k
     exposure_fcy: np.ndarray  # actual net exposure in currency units, n x k
     rates: pd.DataFrame  # short rates in percent, date x ccy (USD included)
-    forecast_fcy: pd.DataFrame  # 21-day-ahead median forecast by origin, origin x ccy
+    forecast_fcy: pd.DataFrame  # holding-month average median forecast, origin x ccy
     day_count: dict[str, int]
     ccys: list[str]
 
@@ -61,7 +63,7 @@ class MarketData:
         return int(np.flatnonzero(self.calendar == date)[0])
 
 
-def load_market_data(con: duckdb.DuckDBPyConnection, ccys: list[str], horizon: int) -> MarketData:
+def load_market_data(con: duckdb.DuckDBPyConnection, ccys: list[str]) -> MarketData:
     """Pull prices, returns, exposure, rates and stored forecasts from DuckDB."""
     returns = fx_returns(con, tuple(ccys)).dropna()
     calendar = pd.DatetimeIndex(returns.index)
@@ -75,12 +77,9 @@ def load_market_data(con: duckdb.DuckDBPyConnection, ccys: list[str], horizon: i
     dc = con.execute("SELECT DISTINCT ccy, day_count FROM rates_short").df()
     day_count = {str(r["ccy"]): int(r["day_count"]) for r in dc.to_dict("records")}
     fc = con.execute(
-        "SELECT origin, ccy, q500 FROM forecast_results "
-        "WHERE model = 'calendar_ar1' AND horizon = ?",
-        [horizon],
+        "SELECT origin, target_date, ccy, q500 FROM forecast_results WHERE model = 'calendar_ar1'"
     ).df()
-    forecast = fc.pivot(index="origin", columns="ccy", values="q500")
-    forecast.index = pd.DatetimeIndex(forecast.index)
+    forecast = holding_month_by_origin(fc)
     return MarketData(
         calendar=calendar,
         prices=prices.reindex(calendar)[ccys].to_numpy(dtype=float),
@@ -150,7 +149,7 @@ def run_policy_backtest(
     k = len(ccys)
     con = db.connect(paths)
     try:
-        md = load_market_data(con, ccys, hcfg.horizon_days)
+        md = load_market_data(con, ccys)
         cal = md.calendar
         rebal = rebalance_dates(cal, pd.Timestamp(hcfg.oos_start))
         rebal = rebal[rebal < cal[-1]]

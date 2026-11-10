@@ -512,6 +512,36 @@ def _var_table(d: ReportData) -> pd.DataFrame:
     return out
 
 
+def _model_choice_text(d: ReportData) -> str:
+    """Say which model the optimizer uses and whether it passed, without overclaiming."""
+    v = d.var_backtest
+    row = v[(v["method"] == "t_ewma") & ((v["confidence"] - d.hcfg.confidence).abs() < 1e-9)]
+    name = "the Student-t model with EWMA(0.94) covariance"
+    if row.empty:
+        return f"The optimizer uses {name}; it was not backtested in this run."
+    r = row.iloc[0]
+    if str(r["verdict"]) == "PASS":
+        level = _pct(r["confidence"])
+        return f"The optimizer therefore uses {name}, which passes every test at {level}."
+    failed = [
+        label
+        for col, label in (
+            ("kupiec_p", "exception count (Kupiec)"),
+            ("christoffersen_p", "independence (Christoffersen)"),
+            ("z2_p", "ES size (Acerbi-Szekely)"),
+        )
+        if _num(r[col]) < 0.05
+    ]
+    return (
+        f"No model passes every test at {_pct(r['confidence'])} on this book. The optimizer "
+        f"uses {name}, which fails on {', '.join(failed) or 'conditional coverage'}: "
+        f"{int(r['n_exceptions'])} exceptions against {_num(r['expected_exceptions']):.1f} "
+        f"expected (Kupiec p = {_num(r['kupiec_p']):.2f}), Christoffersen p = "
+        f"{_num(r['christoffersen_p']):.2f}, Acerbi-Szekely p = {_num(r['z2_p']):.2f}. Its "
+        "ES budget is therefore a less reliable bound than the table above suggests."
+    )
+
+
 VAR_DECIMALS = {"expected": 1, "Kupiec p": 2, "Christoffersen p": 2, "Acerbi-Szekely Z2 p": 2}
 
 
@@ -584,7 +614,7 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             f"overall **{d.quality_overall}** (`reports/quality_report.md`, "
             "`reports/alerts.md`). Sources are FRED H.10 noon rates (primary), Bank of Canada "
             "and ECB crosses (reconciliation and fallback), BIS policy rates and effective "
-            "exchange rates, OECD short rates via FRED, and US and Canadian retail sales for "
+            "exchange rates, the ECB deposit rate, and US and Canadian retail sales for "
             "the seasonality of the synthetic flows. The flows themselves are generated from "
             "`config/flows.yaml`; no real company's data is used.\n\n"
             + df_to_markdown(d.quality_summary),
@@ -605,9 +635,9 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             f"{biggest['ccy']} at USD {biggest['net_usd_m']:,.1f}m. A negative net-of-hedges "
             "figure on a month-end is expected: exposure in the synthetic business dips on the "
             "last day of the month when fees are swept and weekly payouts land, while the "
-            "forward in force was sized on the forecast for the policy's 21-day target date "
-            "and runs until the next rebalance (ADR-0013; the history figure plots monthly "
-            "averages for that reason).\n\n"
+            "forward in force was sized on the average forecast over the whole month and runs "
+            "until the next rebalance (ADR-0013; the history figure plots monthly averages for "
+            "that reason).\n\n"
             + df_to_markdown(_waterfall_table(d), decimals=1)
             + "\n\n"
             + _fig(figs, "waterfall", "exposure waterfall")
@@ -667,8 +697,10 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             "independence, Basel traffic light, Acerbi-Szekely Z2 for ES). A verdict of PASS "
             f"needs every p-value at or above 0.05. Passing: {pass_txt}.\n\n"
             + df_to_markdown(_var_table(d), decimals=VAR_DECIMALS)
-            + "\n\nThe optimizer therefore uses the Student-t model with EWMA(0.94) covariance "
-            f"(tail index {float(h['nu']):.1f} on the latest window). Multi-day coverage is not "
+            + "\n\n"
+            + _model_choice_text(d)
+            + f" Its tail index is {float(h['nu']):.1f} on the latest window. Multi-day "
+            "coverage is not "
             "tested formally because overlapping windows break the tests' independence "
             "assumption (ADR-0010); the 21-day ES is the one-day model scaled by the "
             "square-root of time under the t distribution.",
@@ -698,8 +730,10 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             + _fig(figs, "frontier", "cost-risk frontier")
             + "\n\nThe optimizer is a convex programme (linear cost, ES of a linear book under "
             "an elliptical distribution is a norm of an affine function of the ratios) solved "
-            "with SLSQP, with a 2 bp turnover regulariser so ratios do not flip between 0 and "
-            "1 on tiny carry differences when the budget is slack (ADR-0012).",
+            f"with SLSQP. A {d.hcfg.turnover_penalty_bp:g} bp penalty on the change in notional "
+            "since the previous month is added to the objective as a preference for a stable "
+            "programme; it reduces month-to-month swings in the ratios without measurably "
+            "changing P&L, volatility or cost (ADR-0012).",
         )
     )
 
@@ -717,10 +751,11 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
         (
             "Out-of-sample policy performance, 2015 to the present",
             f"Walk-forward backtest, monthly rebalance from {d.hcfg.oos_start}, one-month "
-            "forwards priced by covered interest parity at each origin, hedging the "
-            f"{d.hcfg.horizon_days}-day forecast; P&L marked on the actual daily exposure path "
-            "with forward mark-to-market, carry accrual and spread (ADR-0013). No look-ahead: "
-            "covariance, tail index, rates and forecasts use data up to the origin only.\n\n"
+            "forwards priced by covered interest parity at each origin, hedging the median "
+            "forecast averaged over the month each forward covers; P&L marked on the actual "
+            "daily exposure path with forward mark-to-market, carry accrual and spread "
+            "(ADR-0013). No look-ahead: covariance, tail index, rates and forecasts use data "
+            "up to the origin only.\n\n"
             + df_to_markdown(_summary_table(d), decimals=SUMMARY_DECIMALS)
             + "\n\nUSD m. Hedging cost is carry plus bid-ask spread per year, positive when "
             "the hedges cost money, the same convention as the frontier above."
@@ -809,16 +844,17 @@ def _limitations(d: ReportData, cov95: float, breaches: int, n_months: int) -> s
         "**Forwards only.** No options, no cross-currency basis, no NDF basis for BRL and "
         "INR; one-way spreads are stylized round numbers from `config/hedge.yaml` (hedging "
         "primer, section 5; backlog B3, B4, B18).",
-        "**Short rates are monthly OECD series for most currencies**, each month's average "
-        "used only once the month is over (so one to two months old when a forward is "
-        "priced), with BIS policy rates as the fallback when a series lags; the SGD rate is "
-        "a flagged USD proxy so SGD carry is zero by construction (ADR-0006, backlog B1, B2).",
+        "**Forwards are priced off central-bank policy rates**, the ECB deposit rate for the "
+        "euro area, so carry ignores rate changes expected within the month; one- and "
+        "three-month OIS rates would be better but are not freely available. The SGD rate is "
+        "a flagged USD proxy, so SGD carry is zero by construction (ADR-0015, backlog B1, B2).",
         "**Coverage is tested at one day.** The 21-day ES is a scaled one-day model; the "
         "overlapping-window tests at longer horizons have too little power to be decisive "
         "(ADR-0010, backlog B11).",
-        "**One risk model inside the optimizer.** The Student-t EWMA model is the one that "
-        "passed the tests on this book; a different book might prefer another, and the "
-        "engine reports all of them so that choice can be revisited.",
+        "**One risk model inside the optimizer, and it does not pass every test.** The "
+        "Student-t EWMA model was chosen on the coverage backtest over the same 2015-2026 "
+        "period the policy is evaluated on, and on the current book its exceptions "
+        "cluster. The engine reports every model so the choice can be revisited.",
         "**Fixing-time mismatches** between sources (noon New York, 14:15 CET, Bank of "
         "Canada daily average) are reconciled within tolerance, not modelled (ADR-0005).",
         "**Weekday calendar, no holidays**, for settlement and payouts (backlog B9).",

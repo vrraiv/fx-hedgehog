@@ -41,9 +41,11 @@ def test_config_loads_and_normalises(cfg: FlowConfig) -> None:
 def test_conservation_per_pair(cfg: FlowConfig) -> None:
     c = _short(cfg)
     days = pd.date_range(c.start, c.end, freq="D")
-    f = generate_pair(c, "EA", "EUR", FLAT, days)
+    # a foreign-currency collection (GBP at the euro-area entity), so both payout legs exist
+    f = generate_pair(c, "EA", "GBP", FLAT, days)
     tot = f.groupby("flow_type")["amount"].sum()
-    take, s, rr = c.take_rate, c.same_ccy_share("EUR"), c.refund_rate
+    take, s, rr = c.take_rate, c.same_ccy_share("EA", "GBP"), c.refund_rate
+    assert 0 < s < 1
     assert set(tot.index) <= set(FLOW_TYPES)
     # everything authorized settles (up to the few days of end effects)
     assert tot["settlement"] == pytest.approx(tot["auth"], rel=5e-3)
@@ -189,3 +191,13 @@ def test_auto_end_is_the_month_end_of_the_latest_fx_fixing(
     assert resolve_end(fixed, cache).end == date(2020, 6, 30)
     with pytest.raises(ValueError, match="unresolved"):
         generate(auto, {"US": FLAT, "CA": FLAT})
+
+
+def test_home_currency_merchants_are_paid_in_full_in_that_currency(cfg: FlowConfig) -> None:
+    """Euro-area merchants of the euro-area entity are paid in euros: nothing to convert."""
+    assert cfg.same_ccy_share("EA", "EUR") == 1.0 and cfg.same_ccy_share("UK", "GBP") == 1.0
+    assert cfg.same_ccy_share("EA", "GBP") == cfg.same_ccy_share("US", "GBP") < 1.0
+    c = _short(cfg, 1)
+    f = generate_pair(c, "EA", "EUR", FLAT, pd.date_range(c.start, c.end, freq="D"))
+    assert "payout_converted" not in set(f["flow_type"])
+    assert "payout_same" in set(f["flow_type"])

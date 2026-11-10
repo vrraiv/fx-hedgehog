@@ -133,7 +133,7 @@ def generate_pair(
     noise = _ar1_noise(rng, n, cfg.noise_daily_sigma, cfg.noise_ar1)
     auth = volume * growth * weekly * monthly * _regime_multiplier(cfg, days) * noise
 
-    take, s = cfg.take_rate, cfg.same_ccy_share(ccy)
+    take, s = cfg.take_rate, cfg.same_ccy_share(entity, ccy)
     payable_accrual = auth * (1 - take) * s
 
     # settlement: spread each day's authorizations over business-day lags

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 Source = Literal["fred", "boc", "ecb", "bis", "statcan"]
-Category = Literal["fx", "rate", "policy_rate", "eer", "retail"]
+Category = Literal["fx", "policy_rate", "eer", "retail"]
 Quote = Literal["USD_PER_FCY", "FCY_PER_USD", "CAD_PER_FCY", "FCY_PER_EUR"]
 Frequency = Literal["daily", "monthly"]
 
@@ -171,64 +171,6 @@ _FRED_FX: list[SeriesSpec] = [
 ]
 
 
-def _oecd(series_id: str, ccy: str, description: str, tenor: int, stale: int = 200) -> SeriesSpec:
-    return SeriesSpec(
-        "fred",
-        series_id,
-        "rate",
-        ccy,
-        description,
-        frequency="monthly",
-        unit="percent",
-        stale_after_days=stale,
-        tenor_months=tenor,
-    )
-
-
-# Short rates. OECD "IR3TIB01" = 3-month interbank, monthly average; "IRSTCI01" = immediate
-# (overnight/call) rate, monthly, used where no 3-month series exists on FRED. The OECD feed
-# to FRED is published with a lag of one to several months, hence the generous staleness.
-_FRED_RATES: list[SeriesSpec] = [
-    SeriesSpec(
-        "fred",
-        "DTB3",
-        "rate",
-        "USD",
-        "3-month Treasury bill, secondary market, discount basis",
-        unit="percent",
-        tenor_months=3,
-    ),
-    SeriesSpec(
-        "fred",
-        "SOFR",
-        "rate",
-        "USD",
-        "Secured Overnight Financing Rate",
-        unit="percent",
-        tenor_months=0,
-    ),
-    _oecd(
-        "IR3TIB01EZM156N",
-        "EUR",
-        "Euro area 3-month interbank rate (OECD MEI, monthly)",
-        3,
-        stale=400,
-    ),
-    _oecd("IR3TIB01GBM156N", "GBP", "UK 3-month interbank rate (OECD MEI, monthly)", 3, stale=400),
-    _oecd("IR3TIB01JPM156N", "JPY", "Japan 3-month interbank rate (OECD MEI, monthly)", 3),
-    _oecd("IR3TIB01AUM156N", "AUD", "Australia 3-month interbank rate (OECD MEI, monthly)", 3),
-    _oecd("IR3TIB01CHM156N", "CHF", "Switzerland 3-month interbank rate (OECD MEI, monthly)", 3),
-    _oecd(
-        "IR3TIB01CAM156N",
-        "CAD",
-        "Canada 3-month interbank rate (OECD MEI, monthly) - cross-check only",
-        3,
-    ),
-    _oecd("IR3TIB01MXM156N", "MXN", "Mexico 3-month interbank rate (OECD MEI, monthly)", 3),
-    _oecd("IRSTCI01BRM156N", "BRL", "Brazil immediate (overnight) rate (OECD MEI, monthly)", 0),
-    _oecd("IRSTCI01INM156N", "INR", "India immediate (call money) rate (OECD MEI, monthly)", 0),
-]
-
 _FRED_RETAIL: list[SeriesSpec] = [
     SeriesSpec(
         "fred",
@@ -303,18 +245,6 @@ _BOC_FX: list[SeriesSpec] = [
     )
     for ccy, sid in _BOC_LEGACY.items()
 ]
-_BOC_RATES: list[SeriesSpec] = [
-    SeriesSpec(
-        "boc",
-        "TB.CDN.90D.MID",
-        "rate",
-        "CAD",
-        "Government of Canada 3-month treasury bill, mid-market yield (formerly V39065)",
-        unit="percent",
-        tenor_months=3,
-    ),
-]
-
 # ---------------------------------------------------------------------------------------
 # ECB reference rates, 14:15 CET, units of FCY per euro.
 # ---------------------------------------------------------------------------------------
@@ -328,6 +258,21 @@ _ECB_FX: list[SeriesSpec] = [
         f"{ccy} per EUR",
     )
     for ccy in ("USD", "GBP", "CAD", "JPY", "AUD", "CHF", "MXN", "BRL", "INR", "SGD")
+]
+
+# ECB deposit facility rate: the policy rate that has anchored euro money-market rates
+# since 2014 (the BIS series for the euro area is the main refinancing rate, which sat
+# 40-50 bp above money-market rates through 2015-2022). Dataflow FM, daily.
+_ECB_POLICY: list[SeriesSpec] = [
+    SeriesSpec(
+        "ecb",
+        "FM.D.U2.EUR.4F.KR.DFR.LEV",
+        "policy_rate",
+        "EUR",
+        "ECB deposit facility rate",
+        unit="percent",
+        stale_after_days=45,
+    ),
 ]
 
 # ---------------------------------------------------------------------------------------
@@ -402,11 +347,10 @@ _STATCAN_RETAIL: list[SeriesSpec] = [
 
 ALL_SERIES: tuple[SeriesSpec, ...] = tuple(
     _FRED_FX
-    + _FRED_RATES
     + _FRED_RETAIL
     + _BOC_FX
-    + _BOC_RATES
     + _ECB_FX
+    + _ECB_POLICY
     + _BIS_EER
     + _BIS_CBPOL
     + _STATCAN_RETAIL

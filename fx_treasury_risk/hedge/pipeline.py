@@ -14,6 +14,7 @@ from fx_treasury_risk.hedge import optimizer as opt
 from fx_treasury_risk.hedge import plots
 from fx_treasury_risk.hedge.config import HedgeConfig, load_hedge_config
 from fx_treasury_risk.hedge.rates import forward_table_on
+from fx_treasury_risk.hedge.sizing import holding_month, holding_month_mean
 from fx_treasury_risk.report.tables import df_to_markdown, write_markdown
 from fx_treasury_risk.risk import covariance as cv
 from fx_treasury_risk.risk.returns import fx_returns
@@ -35,15 +36,20 @@ class HedgeRun:
     exposure_source: str
 
 
-def _latest_forecast(con: duckdb.DuckDBPyConnection, horizon: int) -> pd.Series | None:
+def _latest_forecast(con: duckdb.DuckDBPyConnection) -> tuple[pd.Series, pd.Period] | None:
+    """Holding-month average of the latest median forecasts, and the month it covers."""
     try:
         df = con.execute(
-            "SELECT ccy, q500 FROM forecast_latest WHERE model = 'calendar_ar1' AND horizon = ?",
-            [horizon],
+            "SELECT origin, target_date, ccy, q500 FROM forecast_latest "
+            "WHERE model = 'calendar_ar1'"
         ).df()
     except duckdb.Error:
         return None
-    return None if df.empty else df.set_index("ccy")["q500"].astype(float)
+    if df.empty:
+        return None
+    origin = pd.Timestamp(df["origin"].max())
+    wide = df.pivot(index="target_date", columns="ccy", values="q500")
+    return holding_month_mean(wide, origin).astype(float), holding_month(origin)
 
 
 def build_problem(
@@ -60,10 +66,10 @@ def build_problem(
     cov = cv.ewma_cov(returns, hcfg.risk_lam).loc[ccys, ccys].to_numpy()
     fwd = forward_table_on(con, as_of, hcfg.forward_tenor_days, tuple(ccys))
     spot = fwd["spot"]
-    forecast = _latest_forecast(con, hcfg.horizon_days)
+    forecast = _latest_forecast(con)
     if hcfg.exposure_input == "forecast" and forecast is not None:
-        expo_fcy = forecast.reindex(ccys)
-        source = f"calendar_ar1 median forecast, {hcfg.horizon_days} days ahead"
+        expo_fcy = forecast[0].reindex(ccys)
+        source = f"calendar_ar1 median forecast, averaged over the trading days of {forecast[1]}"
     else:
         ex = (
             con.execute(

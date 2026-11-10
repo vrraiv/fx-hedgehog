@@ -12,16 +12,6 @@ import numpy as np
 import pandas as pd
 
 
-def simple_yield_from_discount(discount_pct: float, days: int, day_count: int = 360) -> float:
-    """Convert a bank-discount rate (US T-bills) to a simple money-market yield.
-
-    A bill quoted at discount ``d`` costs ``1 - d * days / 360`` per unit of face value;
-    the simple yield on that price is ``y = d / (1 - d * days / 360)``.
-    """
-    d = discount_pct / 100
-    return 100 * d / (1 - d * days / day_count)
-
-
 def forward_rate(
     spot: float,
     r_usd_pct: float,
@@ -82,26 +72,6 @@ class ForwardQuote:
         return hedge_cost_rate(self.spot, self.forward, self.days)
 
 
-def instrument_days(tenor_months: int) -> int:
-    """Calendar days to maturity of the instrument a rate is quoted on (3 months -> 91).
-
-    The discount-to-yield conversion depends on the *bill's* maturity, not on the tenor of
-    the forward being priced: a 13-week bill quoted at discount ``d`` has a simple yield
-    ``d / (1 - d * 91/360)`` whatever the rate is later used for.
-    """
-    return round(tenor_months * 365 / 12)
-
-
-def usd_simple_rate(rate_pct: float, basis: str, days: int, day_count: int) -> float:
-    """Apply the discount-to-yield conversion if the series is quoted on a discount basis.
-
-    ``days`` is the maturity of the quoted instrument (see :func:`instrument_days`).
-    """
-    return (
-        simple_yield_from_discount(rate_pct, days, day_count) if basis == "discount" else rate_pct
-    )
-
-
 def forward_table(
     spots: pd.Series,
     rates: pd.DataFrame,
@@ -121,21 +91,14 @@ def forward_table(
     recs: dict[str, dict[str, object]] = {
         str(k): {str(c): v for c, v in row.items()} for k, row in rates.to_dict("index").items()
     }
-
-    def simple(row: dict[str, object]) -> float:
-        bill = instrument_days(int(str(row["tenor_months"])))
-        return usd_simple_rate(
-            float(str(row["rate_pct"])), str(row["basis"]), bill, int(str(row["day_count"]))
-        )
-
     usd = recs["USD"]
     dc_usd = int(str(usd["day_count"]))
-    r_usd = simple(usd)
+    r_usd = float(str(usd["rate_pct"]))
     rows = []
     for ccy, spot in spots.items():
         r = recs[str(ccy)]
         dc_fcy = int(str(r["day_count"]))
-        r_fcy = simple(r)
+        r_fcy = float(str(r["rate_pct"]))
         fwd = forward_rate(float(spot), r_usd, r_fcy, days, dc_usd, dc_fcy)
         q = ForwardQuote(
             ccy=str(ccy),

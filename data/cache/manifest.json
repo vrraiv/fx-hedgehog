@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "updated_at": "2026-11-06T03:45:56+00:00",
+  "updated_at": "2026-11-10T01:52:03+00:00",
   "series": {
     "bis:D.AU": {
       "source": "bis",
@@ -453,17 +453,6 @@
       "sha256": "4ccf7356dc0ec77daab49277c6037690fb17b82da543512f7cf93ddc7761110d",
       "note": ""
     },
-    "boc:TB.CDN.90D.MID": {
-      "source": "boc",
-      "series_id": "TB.CDN.90D.MID",
-      "url": "https://www.bankofcanada.ca/valet/observations/V39079,TB.CDN.90D.MID/json?start_date=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:40+00:00",
-      "first_date": "2010-01-04",
-      "last_date": "2026-11-04",
-      "n_obs": 4204,
-      "sha256": "db7bad6adde467369a5560d7223c8e3977bf660eaa5f4ffe5c55903b17f4c7bf",
-      "note": ""
-    },
     "ecb:D.AUD.EUR.SP00.A": {
       "source": "ecb",
       "series_id": "D.AUD.EUR.SP00.A",
@@ -572,6 +561,17 @@
       "last_date": "2026-11-05",
       "n_obs": 4314,
       "sha256": "758f6bcc90a18b5030ecc914230af709381e0b03416255e5c6043ad8cee5eaed",
+      "note": ""
+    },
+    "ecb:FM.D.U2.EUR.4F.KR.DFR.LEV": {
+      "source": "ecb",
+      "series_id": "FM.D.U2.EUR.4F.KR.DFR.LEV",
+      "url": "https://data-api.ecb.europa.eu/service/data/FM/D.U2.EUR.4F.KR.DFR.LEV?format=csvdata&startPeriod=2010-01-04",
+      "retrieved_at": "2026-11-10T01:52:03+00:00",
+      "first_date": "2010-01-04",
+      "last_date": "2026-11-10",
+      "n_obs": 6155,
+      "sha256": "1a087c0c05828cabca0fe24fbb33bf424bb56346c049b3051cbdbea71b9452d7",
       "note": ""
     },
     "fred:DEXBZUS": {
@@ -684,116 +684,6 @@
       "sha256": "46d170034650c3fbbfea5d5149a21bfc2b4502ced02c32febd5c82ac89a2a63d",
       "note": "FRED keyless CSV download"
     },
-    "fred:DTB3": {
-      "source": "fred",
-      "series_id": "DTB3",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTB3&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2010-01-04",
-      "last_date": "2026-11-04",
-      "n_obs": 4213,
-      "sha256": "cfbb2a9f57a4c93d8dbe9d2ff2c38ef1e17644b38d9737e86e8f380726575bf0",
-      "note": "FRED keyless CSV download"
-    },
-    "fred:IR3TIB01AUM156N": {
-      "source": "fred",
-      "series_id": "IR3TIB01AUM156N",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TIB01AUM156N&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2010-01-01",
-      "last_date": "2026-08-01",
-      "n_obs": 200,
-      "sha256": "2f846c4f4cd0fc57436b509453ff45e8915e5431df43cbb44ce723c392635b6f",
-      "note": "FRED keyless CSV download"
-    },
-    "fred:IR3TIB01CAM156N": {
-      "source": "fred",
-      "series_id": "IR3TIB01CAM156N",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TIB01CAM156N&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2010-01-01",
-      "last_date": "2026-09-01",
-      "n_obs": 201,
-      "sha256": "b7207a092f6d4379c040368a0dc79d2f85e631cdc61fadd99b21369af416711e",
-      "note": "FRED keyless CSV download"
-    },
-    "fred:IR3TIB01CHM156N": {
-      "source": "fred",
-      "series_id": "IR3TIB01CHM156N",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TIB01CHM156N&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2010-01-01",
-      "last_date": "2026-09-01",
-      "n_obs": 201,
-      "sha256": "ab8f891df8f69a6b45228d4dac558a6abd76f7bc4923ed857510628c83eb7e0e",
-      "note": "FRED keyless CSV download"
-    },
-    "fred:IR3TIB01EZM156N": {
-      "source": "fred",
-      "series_id": "IR3TIB01EZM156N",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TIB01EZM156N&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2010-01-01",
-      "last_date": "2026-01-01",
-      "n_obs": 193,
-      "sha256": "88a75b8723210b5e415b2090314c09bae58b61214b7c64e0b0600519d73fb843",
-      "note": "FRED keyless CSV download"
-    },
-    "fred:IR3TIB01GBM156N": {
-      "source": "fred",
-      "series_id": "IR3TIB01GBM156N",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TIB01GBM156N&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2010-01-01",
-      "last_date": "2026-01-01",
-      "n_obs": 193,
-      "sha256": "813c7a6b899a0163c42f56515d4ce17046d2ce64d5bc74fe1242f93e493db6c8",
-      "note": "FRED keyless CSV download"
-    },
-    "fred:IR3TIB01JPM156N": {
-      "source": "fred",
-      "series_id": "IR3TIB01JPM156N",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TIB01JPM156N&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2010-01-01",
-      "last_date": "2026-08-01",
-      "n_obs": 200,
-      "sha256": "7479bded57c299ddf5dc1d3c33c2d1cc5408069330e1dfbd1195fab73a07b632",
-      "note": "FRED keyless CSV download"
-    },
-    "fred:IR3TIB01MXM156N": {
-      "source": "fred",
-      "series_id": "IR3TIB01MXM156N",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TIB01MXM156N&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2010-01-01",
-      "last_date": "2026-09-01",
-      "n_obs": 201,
-      "sha256": "d21230fccde8f90a8d9d8ac46a14f4d261e0d80e657de91358cae3fad61de5e9",
-      "note": "FRED keyless CSV download"
-    },
-    "fred:IRSTCI01BRM156N": {
-      "source": "fred",
-      "series_id": "IRSTCI01BRM156N",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IRSTCI01BRM156N&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2010-01-01",
-      "last_date": "2026-09-01",
-      "n_obs": 201,
-      "sha256": "5e1acdb5fbd9b02a780979b6bb1c20c0c5b4184102eff4e604045214661bd82f",
-      "note": "FRED keyless CSV download"
-    },
-    "fred:IRSTCI01INM156N": {
-      "source": "fred",
-      "series_id": "IRSTCI01INM156N",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IRSTCI01INM156N&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2010-01-01",
-      "last_date": "2026-09-01",
-      "n_obs": 201,
-      "sha256": "dc0d238883166b710cc6f71ba495380c0dd576a0f894c03fa5de09e1946039aa",
-      "note": "FRED keyless CSV download"
-    },
     "fred:RSXFS": {
       "source": "fred",
       "series_id": "RSXFS",
@@ -814,17 +704,6 @@
       "last_date": "2026-09-01",
       "n_obs": 201,
       "sha256": "0c89422450c4989375d6dc690fd049334875e2075da15e6b17cb0f87a28ac900",
-      "note": "FRED keyless CSV download"
-    },
-    "fred:SOFR": {
-      "source": "fred",
-      "series_id": "SOFR",
-      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SOFR&cosd=2010-01-04",
-      "retrieved_at": "2026-11-06T03:45:38+00:00",
-      "first_date": "2018-04-03",
-      "last_date": "2026-11-04",
-      "n_obs": 2146,
-      "sha256": "54b4082eac3a16bfc194c6abdb6d7d881b504eb4678d785ea3d947b0f2d72d01",
       "note": "FRED keyless CSV download"
     },
     "statcan:v1446859481": {

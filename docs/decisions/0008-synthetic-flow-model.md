@@ -29,7 +29,12 @@ testable against the configuration.
 * **What is calibrated:** only the annual seasonal factors, from the NSA/SA ratio of
   public retail sales (FRED `RSXFSN`/`RSXFS` for the US profile, StatCan 20-10-0056-01
   for Canada). Weekly seasonality, volumes, take rate, refund rate, lag distributions,
-  payout schedules and the same-currency payout shares are stylized round numbers.
+  payout schedules and the same-currency payout shares are stylized round numbers. The
+  share applies to foreign-currency collections only: a collection in the entity's own
+  functional currency is paid out entirely in that currency, since there is nothing to
+  convert into. (An earlier version applied the 60% default to those pairs too, which
+  "converted" 40% of euro-area euro payouts into euros and inflated the EUR, GBP and CAD
+  exposures that the hedge results depend on most.)
 * **Intercompany loans** net to zero at group level by construction (the subsidiary
   spends the proceeds on payouts), so they appear in gross but not net exposure. This is
   deliberate: it is what the gross-to-net step of the waterfall is meant to show.

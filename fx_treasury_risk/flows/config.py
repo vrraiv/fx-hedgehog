@@ -66,8 +66,15 @@ class FlowConfig:
         """Lag distribution (business days -> probability) for a currency."""
         return self.settlement_lag_by_ccy.get(ccy, self.settlement_lag_default)
 
-    def same_ccy_share(self, ccy: str) -> float:
-        """Share of merchant payouts made in the collected currency."""
+    def same_ccy_share(self, entity: str, ccy: str) -> float:
+        """Share of merchant payouts made in the collected currency.
+
+        When the collected currency is the entity's functional currency there is nothing
+        to convert into: every merchant is paid in that currency, so the share is one.
+        The configured shares apply only to foreign-currency collections.
+        """
+        if ccy == self.entities[entity].functional:
+            return 1.0
         return self.same_ccy_share_by_ccy.get(ccy, self.same_ccy_share_default)
 
     @property

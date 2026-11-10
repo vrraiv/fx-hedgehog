@@ -50,8 +50,10 @@ payout:
   # daily = every business day; weekly = Fridays. Merchant payouts cover everything
   # settled since the previous payout date.
   schedule_by_entity: {US: daily, CA: daily, EA: weekly, UK: weekly}
-  # Share of merchant payouts made in the collected currency (the rest is converted to the
-  # entity's functional currency, which is where FX exposure comes from).
+  # Share of merchant payouts made in the collected currency when it is a FOREIGN currency
+  # for the entity (the rest is converted to the entity's functional currency, which is
+  # where FX exposure comes from). Collections in the entity's own functional currency
+  # (EUR at EA, GBP at UK, CAD at CA, USD at US) are paid out in full in that currency.
   same_ccy_share:
     default: 0.60
     by_ccy: {JPY: 0.30, BRL: 0.20, INR: 0.20, MXN: 0.40, SGD: 0.50}

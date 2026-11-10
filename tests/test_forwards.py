@@ -20,13 +20,6 @@ def test_primer_worked_example() -> None:
     assert cost < 0 and cost == pytest.approx(-0.0151, abs=5e-4)
 
 
-def test_discount_to_yield() -> None:
-    assert forwards.simple_yield_from_discount(5.0, 90, 360) == pytest.approx(5.0633, abs=1e-3)
-    assert forwards.simple_yield_from_discount(0.0, 90) == 0.0
-    assert forwards.usd_simple_rate(5.0, "simple", 90, 360) == 5.0
-    assert forwards.instrument_days(3) == 91 and forwards.instrument_days(0) == 0
-
-
 def test_day_count_mismatch_is_small() -> None:
     # r * days * (1/360 - 1/365): about 1.7 bp of spot at three months and 5%, 0.6 bp at one month
     same = forwards.forward_rate(1.25, 5.0, 4.0, 90, 365, 365)
@@ -45,7 +38,7 @@ def test_high_yielder_costs_carry() -> None:
     assert forwards.hedge_cost_rate(s, f, 30) == pytest.approx(0.088, abs=0.005)
 
 
-def test_rates_short_view_precedence_and_proxy(tmp_paths: config.Paths, mini: MiniTruth) -> None:
+def test_rates_short_precedence_and_proxy(tmp_paths: config.Paths, mini: MiniTruth) -> None:
     con = db.build_database(tmp_paths)
     try:
         r = (
@@ -56,35 +49,40 @@ def test_rates_short_view_precedence_and_proxy(tmp_paths: config.Paths, mini: Mi
             .df()
             .set_index("ccy")
         )
-        # the mini cache has DTB3 (USD) and the CAD T-bill; both daily, so fresh primaries
+        # every rate is a policy rate, daily, so the primaries are fresh
         assert r.loc["USD", "rate_pct"] == 0.5 and not r.loc["USD", "is_fallback"]
-        assert r.loc["CAD", "rate_pct"] == 0.48
+        assert r.loc["CAD", "rate_pct"] == 0.48 and r.loc["CAD", "source"] == "bis"
+        # the euro area uses the ECB deposit facility rate, not the BIS (MRO) series
+        assert r.loc["EUR", "rate_pct"] == -0.4 and r.loc["EUR", "source"] == "ecb"
         # SGD is the USD rate flagged as a proxy
         assert r.loc["SGD", "rate_pct"] == 0.5 and bool(r.loc["SGD", "is_proxy"])
         # currencies with no rate data in the mini cache are simply absent
-        assert "EUR" not in r.index
+        assert "JPY" not in r.index
     finally:
         con.close()
 
 
-def test_monthly_rate_is_used_only_after_its_month_ends(
-    tmp_paths: config.Paths, mini: MiniTruth
-) -> None:
-    """An OECD monthly average dated the 1st must not price a forward inside that month."""
+def test_stale_primary_falls_back(tmp_paths: config.Paths, mini: MiniTruth) -> None:
+    """A deposit rate more than 120 days old gives way to the BIS euro-area series."""
     from fx_treasury_risk.data.cache import SeriesCache
 
-    monthly = pd.Series(
-        [1.0, 2.0, 3.0], index=pd.to_datetime(["2016-11-01", "2016-12-01", "2017-01-01"])
+    cache = SeriesCache(tmp_paths.cache_dir)
+    cache.write(
+        "ecb",
+        "FM.D.U2.EUR.4F.KR.DFR.LEV",
+        pd.Series([-0.4], index=pd.to_datetime(["2016-09-01"])),
+        url="test://",
     )
-    SeriesCache(tmp_paths.cache_dir).write("fred", "IR3TIB01EZM156N", monthly, url="test://")
+    days = pd.bdate_range("2016-12-01", "2017-01-31")
+    cache.write("bis", "D.XM", pd.Series(0.0, index=days), url="test://")
     con = db.build_database(tmp_paths)
     try:
-        q = "SELECT rate_pct, rate_date FROM rates_short WHERE ccy = 'EUR' AND obs_date = ?"
-        # mid-December: the December average is not known yet, November's is
-        assert con.execute(q, ["2016-12-15"]).fetchall()[0][0] == 1.0
-        # mid-January: December's average is now known; January's is not
-        rate, ref = con.execute(q, ["2017-01-10"]).fetchall()[0]
-        assert rate == 2.0 and str(ref) == "2016-12-01"
+        q = (
+            "SELECT rate_pct, source, is_fallback FROM rates_short "
+            "WHERE ccy = 'EUR' AND obs_date = ?"
+        )
+        assert con.execute(q, ["2016-12-15"]).fetchall()[0] == (-0.4, "ecb", False)  # 105 days old
+        assert con.execute(q, ["2017-01-10"]).fetchall()[0] == (0.0, "bis", True)  # 131 days old
     finally:
         con.close()
 
@@ -99,9 +97,7 @@ def test_forward_table_shapes(tmp_paths: config.Paths, mini: MiniTruth) -> None:
         rates = rates_on(con, as_of)
         tbl = forwards.forward_table(spots[["CAD"]], rates, 30)
         assert list(tbl.index) == ["CAD"]
-        # DTB3 is a 13-week bill: its discount rate converts over 91 days, not over the
-        # 30-day tenor of the forward it is used to price
-        r_usd = forwards.simple_yield_from_discount(0.5, 91)
+        r_usd = 0.5
         assert tbl.loc["CAD", "r_usd_pct"] == pytest.approx(r_usd)
         assert tbl.loc["CAD", "forward"] == pytest.approx(
             forwards.forward_rate(spots["CAD"], r_usd, 0.48, 30, 360, 365)

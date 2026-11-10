@@ -355,3 +355,15 @@ def test_report_views_sql_parses(tmp_path: Path) -> None:
     assert len(monthly) == 1 and monthly["n_days"].iloc[0] == 2
     assert monthly["gross_usd_m"].iloc[0] == pytest.approx(200 / 1e6)
     con.close()
+
+
+def test_model_choice_text_does_not_overclaim(tmp_path: Path) -> None:
+    d = _data(tmp_path)
+    assert "passes every test at 99%" in decision._model_choice_text(d)
+    v = d.var_backtest.copy()
+    v.loc[v["method"] == "t_ewma", ["christoffersen_p", "verdict"]] = [0.001, "FAIL"]
+    d.var_backtest = v
+    text = decision._model_choice_text(d)
+    assert text.startswith("No model passes every test at 99%")
+    assert "independence (Christoffersen)" in text and "Kupiec" in text  # Kupiec p reported
+    assert "exception count" not in text  # Kupiec passed, so not listed as a failure

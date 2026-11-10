@@ -38,14 +38,27 @@ down along a line search.
 applied as a post-step: sub-ticket hedges are set to zero and kept out only if the ES
 budget still holds.
 
-**Turnover penalty** (``turnover_penalty_bp``, 2 bp of the notional changed in the
+**Turnover penalty** (``turnover_penalty_bp``, 10 bp of the notional changed in the
 default configuration) is a regulariser in the objective only, not a realized cost: the
 backtest rolls one-month forwards, so the full notional is re-dealt each month and the
 bid-ask term already prices the trading. With a hard ES constraint and linear costs the
-optimum is bang-bang, and without the penalty ratios flip between 0 and 1 on carry
-differences of a few basis points when the budget is slack. The penalty is measured
-against the previous month's ratios, which the hedge stage reads from the policy
-backtest's last rebalance (the backtest therefore runs first).
+optimum is bang-bang: when the budget binds, the whole of it goes to whichever currency
+buys risk reduction most cheaply that month, and small changes in volatility move it
+between MXN and AUD. The penalty states a preference for a stable programme, and its
+size was chosen by measuring the trade-off over the 2015-2026 backtest:
+
+| penalty | monthly ratio jumps > 0.5 | mean monthly ratio change | total P&L (USD m) | P&L vol (USD m / yr) | hedging cost (USD m / yr) |
+|---|---|---|---|---|---|
+| 2 bp | 35 | 0.34 | -6.6 | 4.61 | -0.89 |
+| 5 bp | 28 | 0.30 | -6.1 | 4.59 | -0.89 |
+| 10 bp | 24 | 0.26 | -6.6 | 4.59 | -0.88 |
+| 20 bp | 19 | 0.22 | -7.0 | 4.58 | -0.87 |
+
+Smoothing is free in outcomes over this range; 10 bp removes a third of the large jumps.
+A no-trade band would remove more but adds logic to the optimizer and is not needed for
+the conclusions. The penalty is measured against the previous month's ratios, which the
+hedge stage reads from the policy backtest's last rebalance (the backtest therefore runs
+first).
 
 ## Consequences
 

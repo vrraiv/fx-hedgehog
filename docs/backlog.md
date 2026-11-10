@@ -5,8 +5,8 @@ deferred, and what it would take.
 
 | # | Item | Why deferred | Effort |
 |---|---|---|---|
-| B1 | **SGD short rate from MAS.** The MAS eservices API (`eservices.mas.gov.sg/api/action/datastore_search`) returned 404 on 2026-11-05 and the newer `apimg-gw` endpoint requires registration. v1 proxies the SGD rate with the USD rate and flags it (ADR-0006). | No verified keyless public endpoint. | 0.5 day once an endpoint is confirmed |
-| B2 | **Daily 3-month rates for EUR and GBP** (Euribor from the ECB portal, SONIA/term rates from the BoE). The OECD monthly series on FRED lag by up to ten months. | Two more loaders for a modest improvement in carry accuracy at the one-month horizon. | 1 day |
+| B1 | **SGD short rate from MAS.** The MAS eservices API (`eservices.mas.gov.sg/api/action/datastore_search`) returned 404 on 2026-11-05 and the newer `apimg-gw` endpoint requires registration. v1 proxies the SGD rate with the USD rate and flags it (ADR-0015). | No verified keyless public endpoint. | 0.5 day once an endpoint is confirmed |
+| B2 | **One- and three-month OIS rates** in place of policy rates for forward pricing (ADR-0015). Policy rates miss rate changes expected within the month. | No free, keyless source for ten currencies; `rates_short` is the only thing that would change. | 1 day once a source exists |
 | B3 | **Cross-currency basis** in forward pricing. | No public daily source for ten currencies. | depends on data |
 | B4 | **FX options** as a second instrument class. | Needs an implied-vol surface and a non-linear ES; see hedging primer section 5. | 3-5 days |
 | B5 | **Intraday/real-time rates.** | Out of scope for a daily treasury process. | n/a |
@@ -23,5 +23,4 @@ deferred, and what it would take.
 | B16 | **Conformal calibration of forecast intervals** from past out-of-sample errors. | Intervals are 10-15% too narrow (ADR-0011); a rolling empirical adjustment would fix the level without changing the model. | 0.5 day |
 | B17 | **Intra-month hedge adjustment** when exposure drifts beyond a band. | Monthly rolls are the common corporate practice; a band rule needs transaction-cost calibration. | 1 day |
 | B18 | **Cross-currency basis and NDF basis** in the policy backtest's realized cost. | No public daily basis data (see B3). | depends on data |
-| B19 | **Hedge the average forecast exposure over the holding period** rather than the point forecast at the 21-day target date. Exposure in the synthetic business dips on the last day of every month, so a forward sized on the month-end-dated forecast over-hedges the last day and under-hedges the middle of the month (visible in the waterfall's negative net-of-hedges on month-ends). The forecast stage already produces every horizon 1-21 at each origin; the change is to average the medians. | Changes published results; needs a re-run of the policy backtest and a re-read of ADR-0013. | 0.5 day |
 | B20 | **Walkthrough notebook** (`notebooks/walkthrough.ipynb`) that opens `data/fxrisk.duckdb` and steps through the tables behind the report. | Notebooks are kept out of the pipeline so that every number is produced by tested code; the DuckDB file and the report serve the same purpose for now. | 0.5 day |
