@@ -151,114 +151,123 @@ def month_pnl(
     }
 
 
+def simulate_policies(md: MarketData, hcfg: HedgeConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Run every policy month by month on ``md``; returns (daily P&L, monthly decisions).
+
+    Pure: no database, no files. Each decision at a rebalance uses rows of ``md`` up to the
+    origin (the previous trading day) only; the month's P&L then uses the rows after it.
+    """
+    ccys = md.ccys
+    k = len(ccys)
+    cal = md.calendar
+    rebal = rebalance_dates(cal, pd.Timestamp(hcfg.oos_start))
+    rebal = rebal[rebal < cal[-1]]
+    cov_path = cv.ewma_cov_path(pd.DataFrame(md.returns, index=cal, columns=ccys), hcfg.risk_lam)
+    spreads = np.array(hcfg.spread_vector(ccys))
+    dc_usd = md.day_count["USD"]
+    prev_ratio = np.zeros(k)
+    daily_frames: list[pd.DataFrame] = []
+    decisions: list[dict[str, Any]] = []
+    for i, d in enumerate(rebal):
+        t_start = md.pos(d)
+        t_origin = t_start - 1
+        t_end = md.pos(rebal[i + 1]) if i + 1 < len(rebal) else len(cal)
+        if t_end <= t_start:
+            continue
+        origin = cal[t_origin]
+        tenor = int((cal[t_end - 1] - origin).days)
+        spot = md.prices[t_origin]
+        if hcfg.exposure_input == "forecast" and origin in md.forecast_fcy.index:
+            expo_fcy = md.forecast_fcy.reindex(columns=ccys).loc[origin].to_numpy(dtype=float)
+        else:
+            expo_fcy = md.exposure_fcy[t_origin]
+        expo_usd = expo_fcy * spot
+        cov = cov_path[t_origin]
+        hist = md.returns[max(0, t_origin - hcfg.risk_window + 1) : t_origin + 1]
+        port = -(hist @ expo_usd)
+        sd = float(port.std(ddof=1))
+        nu = fit_student_df(port / sd) if sd > 0 else 5.0
+        rate_row = md.rates.loc[[origin]].to_dict("records")[0]
+        r_usd = float(rate_row["USD"])
+        fwd = np.array(
+            [
+                forward_rate(
+                    float(spot[j]), r_usd, float(rate_row[c]), tenor, dc_usd, md.day_count[c]
+                )
+                for j, c in enumerate(ccys)
+            ]
+        )
+        cost_rate = np.array(
+            [hedge_cost_rate(float(spot[j]), float(fwd[j]), tenor) for j in range(k)]
+        )
+        prob = opt.HedgeProblem(
+            ccys=ccys,
+            exposure_usd=expo_usd,
+            cov_daily=cov,
+            horizon_days=hcfg.horizon_days,
+            confidence=hcfg.confidence,
+            nu=nu,
+            es_budget_usd=hcfg.es_budget_usd,
+            cost_rate=cost_rate,
+            spread_bp=spreads,
+            tenor_days=tenor,
+        )
+        for policy in hcfg.policies:
+            if policy == "optimizer":
+                sol = opt.optimize_hedge(
+                    prob, prev_ratio, hcfg.turnover_penalty_bp, hcfg.min_ticket_usd
+                )
+                h = sol.ratios.to_numpy(dtype=float)
+                prev_ratio = h
+                binding = sol.binding
+            elif policy == LEGACY:
+                h = legacy_ratios(md.legacy_fcy, d.to_period("M"), expo_fcy)
+                binding = False
+            else:
+                h = np.full(k, STATIC_RATIOS[policy])
+                binding = False
+            notional_fcy = -h * expo_fcy
+            spread_cost = float(np.sum(spreads / 1e4 * np.abs(h * expo_usd)))
+            pnl = month_pnl(md, t_origin, t_start, t_end, notional_fcy, fwd, spread_cost)
+            frame = pd.DataFrame(pnl)
+            frame.insert(0, "policy", policy)
+            frame.insert(0, "date", cal[t_start:t_end])
+            frame["rebalance"] = d
+            daily_frames.append(frame)
+            decisions.append(
+                {
+                    "rebalance": d,
+                    "origin": origin,
+                    "policy": policy,
+                    "ex_ante_es_usd": prob.residual_es(h),
+                    "ex_ante_var_usd": prob.residual_var(h),
+                    "unhedged_es_usd": prob.residual_es(np.zeros(k)),
+                    "carry_cost_usd": prob.carry_cost(h),
+                    "spread_cost_usd": spread_cost,
+                    "binding": binding,
+                    "nu": nu,
+                    "tenor_days": tenor,
+                    **{f"expo_{c}": float(expo_fcy[j]) for j, c in enumerate(ccys)},
+                    **{f"h_{c}": float(h[j]) for j, c in enumerate(ccys)},
+                }
+            )
+        if i % 24 == 0:
+            log.info("policy backtest: %s done", d.date())
+    daily = pd.concat(daily_frames, ignore_index=True)
+    dec = pd.DataFrame(decisions)
+    return daily, dec
+
+
 def run_policy_backtest(
     paths: config.Paths, hcfg: HedgeConfig | None = None
 ) -> dict[str, pd.DataFrame]:
-    """Run every policy month by month; store daily, monthly and summary tables."""
+    """Simulate the policies, then store daily, monthly and summary tables and the report."""
     hcfg = hcfg or load_hedge_config()
     ccys = list(config.EXPOSURE_CCYS)
-    k = len(ccys)
     con = db.connect(paths)
     try:
         md = load_market_data(con, ccys)
-        cal = md.calendar
-        rebal = rebalance_dates(cal, pd.Timestamp(hcfg.oos_start))
-        rebal = rebal[rebal < cal[-1]]
-        cov_path = cv.ewma_cov_path(
-            pd.DataFrame(md.returns, index=cal, columns=ccys), hcfg.risk_lam
-        )
-        spreads = np.array(hcfg.spread_vector(ccys))
-        dc_usd = md.day_count["USD"]
-        prev_ratio = np.zeros(k)
-        daily_frames: list[pd.DataFrame] = []
-        decisions: list[dict[str, Any]] = []
-        for i, d in enumerate(rebal):
-            t_start = md.pos(d)
-            t_origin = t_start - 1
-            t_end = md.pos(rebal[i + 1]) if i + 1 < len(rebal) else len(cal)
-            if t_end <= t_start:
-                continue
-            origin = cal[t_origin]
-            tenor = int((cal[t_end - 1] - origin).days)
-            spot = md.prices[t_origin]
-            if hcfg.exposure_input == "forecast" and origin in md.forecast_fcy.index:
-                expo_fcy = md.forecast_fcy.reindex(columns=ccys).loc[origin].to_numpy(dtype=float)
-            else:
-                expo_fcy = md.exposure_fcy[t_origin]
-            expo_usd = expo_fcy * spot
-            cov = cov_path[t_origin]
-            hist = md.returns[max(0, t_origin - hcfg.risk_window + 1) : t_origin + 1]
-            port = -(hist @ expo_usd)
-            sd = float(port.std(ddof=1))
-            nu = fit_student_df(port / sd) if sd > 0 else 5.0
-            rate_row = md.rates.loc[[origin]].to_dict("records")[0]
-            r_usd = float(rate_row["USD"])
-            fwd = np.array(
-                [
-                    forward_rate(
-                        float(spot[j]), r_usd, float(rate_row[c]), tenor, dc_usd, md.day_count[c]
-                    )
-                    for j, c in enumerate(ccys)
-                ]
-            )
-            cost_rate = np.array(
-                [hedge_cost_rate(float(spot[j]), float(fwd[j]), tenor) for j in range(k)]
-            )
-            prob = opt.HedgeProblem(
-                ccys=ccys,
-                exposure_usd=expo_usd,
-                cov_daily=cov,
-                horizon_days=hcfg.horizon_days,
-                confidence=hcfg.confidence,
-                nu=nu,
-                es_budget_usd=hcfg.es_budget_usd,
-                cost_rate=cost_rate,
-                spread_bp=spreads,
-                tenor_days=tenor,
-            )
-            for policy in hcfg.policies:
-                if policy == "optimizer":
-                    sol = opt.optimize_hedge(
-                        prob, prev_ratio, hcfg.turnover_penalty_bp, hcfg.min_ticket_usd
-                    )
-                    h = sol.ratios.to_numpy(dtype=float)
-                    prev_ratio = h
-                    binding = sol.binding
-                elif policy == LEGACY:
-                    h = legacy_ratios(md.legacy_fcy, d.to_period("M"), expo_fcy)
-                    binding = False
-                else:
-                    h = np.full(k, STATIC_RATIOS[policy])
-                    binding = False
-                notional_fcy = -h * expo_fcy
-                spread_cost = float(np.sum(spreads / 1e4 * np.abs(h * expo_usd)))
-                pnl = month_pnl(md, t_origin, t_start, t_end, notional_fcy, fwd, spread_cost)
-                frame = pd.DataFrame(pnl)
-                frame.insert(0, "policy", policy)
-                frame.insert(0, "date", cal[t_start:t_end])
-                frame["rebalance"] = d
-                daily_frames.append(frame)
-                decisions.append(
-                    {
-                        "rebalance": d,
-                        "origin": origin,
-                        "policy": policy,
-                        "ex_ante_es_usd": prob.residual_es(h),
-                        "ex_ante_var_usd": prob.residual_var(h),
-                        "unhedged_es_usd": prob.residual_es(np.zeros(k)),
-                        "carry_cost_usd": prob.carry_cost(h),
-                        "spread_cost_usd": spread_cost,
-                        "binding": binding,
-                        "nu": nu,
-                        "tenor_days": tenor,
-                        **{f"expo_{c}": float(expo_fcy[j]) for j, c in enumerate(ccys)},
-                        **{f"h_{c}": float(h[j]) for j, c in enumerate(ccys)},
-                    }
-                )
-            if i % 24 == 0:
-                log.info("policy backtest: %s done", d.date())
-        daily = pd.concat(daily_frames, ignore_index=True)
-        dec = pd.DataFrame(decisions)
+        daily, dec = simulate_policies(md, hcfg)
         monthly = _monthly(daily, dec)
         summary = _summary(daily, monthly, hcfg.es_budget_usd)
         by_year = _by_year(monthly, hcfg.es_budget_usd)
