@@ -96,7 +96,7 @@ hiding it.
 | Report | `fx_treasury_risk/report/`, `sql/110_report_views.sql` | markdown tables, the decision report assembled from persisted tables, exposure figures |
 | Operations | `dags/`, `.github/workflows/` | illustrative Airflow DAG; CI; weekly refresh that opens a PR |
 | CLI | `fx_treasury_risk/cli.py` | `fxrisk fetch \| quality \| flows \| exposure \| forecast \| hedge \| backtest \| risk \| report \| all` |
-| Docs | `docs/` | `methodology.md` (conventions and methods), `hedging-primer.md`, `backlog.md`, `decisions/` (ADRs 0001-0014) |
+| Docs | `docs/` | `methodology.md` (conventions and methods), `hedging-primer.md`, `backlog.md`, `decisions/` (ADRs 0001-0015) |
 
 ## How to run
 
@@ -138,11 +138,10 @@ are in `data/cache/manifest.json`. Coverage is 2010-01-04 onward.
 | Source | Series | Used for |
 |---|---|---|
 | [FRED](https://fred.stlouisfed.org) H.10 | `DEXUSEU DEXUSUK DEXCAUS DEXJPUS DEXUSAL DEXSZUS DEXMXUS DEXBZUS DEXINUS DEXSIUS` | primary USD rates (noon NY) |
-| FRED | `DTB3`, `SOFR`; OECD `IR3TIB01{EZ,GB,JP,AU,CH,CA,MX}M156N`, `IRSTCI01{BR,IN}M156N` | short rates for forward pricing (monthly OECD series forward-filled; see ADR-0006) |
 | FRED | `RSXFSN`, `RSXFS` | US retail sales, seasonality calibration of synthetic flows |
-| [Bank of Canada Valet](https://www.bankofcanada.ca/valet/docs) | `FXUSDCAD` and nine `FX*CAD` (2017-), legacy noon `IEXE*`/`EUROCAE01` (2010-2017); `TB.CDN.90D.MID` | CAD crosses for reconciliation and fallback; CAD 3-month rate |
-| [ECB Data Portal](https://data.ecb.europa.eu) | `EXR.D.<CCY>.EUR.SP00.A`, ten currencies | second cross-check and fallback |
-| [BIS](https://data.bis.org) | `WS_EER` daily nominal broad EER (11 economies); `WS_CBPOL` daily policy rates (10) | stress sanity check; fallback short rates |
+| [Bank of Canada Valet](https://www.bankofcanada.ca/valet/docs) | `FXUSDCAD` and nine `FX*CAD` (2017-), legacy noon `IEXE*`/`EUROCAE01` (2010-2017) | CAD crosses for reconciliation and fallback |
+| [ECB Data Portal](https://data.ecb.europa.eu) | `EXR.D.<CCY>.EUR.SP00.A`, ten currencies; `FM.D.U2.EUR.4F.KR.DFR.LEV` deposit facility rate | second FX cross-check and fallback; euro short rate for forward pricing |
+| [BIS](https://data.bis.org) | `WS_EER` daily nominal broad EER (11 economies); `WS_CBPOL` daily policy rates (10) | stress sanity check; short rates for forward pricing (ADR-0015) |
 | [Statistics Canada](https://www150.statcan.gc.ca) | table 20-10-0056-01, vectors `v1446859481` (NSA), `v1446859483` (SA) | Canadian retail sales seasonality |
 
 ### Reconciliation
@@ -194,12 +193,12 @@ optimizer's monthly positions replace it in the waterfall and the risk engine. D
 
 * **Synthetic flows.** Volumes, seasonality and settlement lags are stylised and
   calibrated only to public retail-sales seasonality. Nothing here describes a real firm.
-* **SGD short rate is a USD proxy** (no verified public API; ADR-0006, backlog B1), so SGD
+* **SGD short rate is a USD proxy** (Singapore has no policy rate; ADR-0015, backlog B1), so SGD
   carry is zero by construction.
-* **Monthly OECD rates** for most currencies, each month's average used only once the
-  month is over, so a forward is priced on a rate one to two months old; publication lag
-  beyond that is not modelled. EUR and GBP series on FRED lag by up to ten months and
-  fall back to BIS policy rates (ADR-0006).
+* **Policy rates, not OIS.** Forwards are priced off central-bank policy rates (the ECB
+  deposit rate for the euro area), so carry ignores rate changes expected within the
+  month; one- and three-month OIS rates would be better but are not free (ADR-0015,
+  backlog B2).
 * **Forwards only; no options, no cross-currency basis, no NDF basis** (hedging primer,
   section 5).
 * **Fixing-time mismatch** between sources is tolerated, not modelled.
@@ -228,7 +227,7 @@ sql/                all SQL, numbered in execution order (010-110)
 data/cache/         committed source data + manifest.json
 dags/               fxrisk_daily.py, illustrative Airflow DAG mirroring the CLI stages
 tests/              pytest suite; tests/fixtures holds trimmed real API responses
-docs/               methodology, hedging primer, backlog, decisions/ (ADRs 0001-0014)
+docs/               methodology, hedging primer, backlog, decisions/ (ADRs 0001-0015)
 reports/            generated outputs: decision_report.md, quality, alerts, risk tables, backtest verdicts, figures/
 .github/workflows/  ci.yml (lint, types, tests, every stage from cache); refresh.yml (weekly refresh -> PR)
 ```

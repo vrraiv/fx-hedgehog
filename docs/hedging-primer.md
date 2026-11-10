@@ -61,12 +61,6 @@ the one-month tenor the policy uses. The code applies the convention per currenc
 252-business-day compounded basis; treating them as simple ACT/365 at one month
 overstates the carry by a few basis points, which is noted rather than modelled.
 
-### Discount-basis T-bills
-
-FRED `DTB3` is quoted on a *bank discount* basis. The simple yield used in CIP is
-`y = d / (1 - d * tau)` where `d` is the discount rate; at `d = 5%` and `tau = 0.25` this
-is 5.06%. The conversion is applied before pricing.
-
 ## 3. Carry: the cost of hedging
 
 Selling FCY forward instead of spot earns (or pays) the forward points. Over the hedge

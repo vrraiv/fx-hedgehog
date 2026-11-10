@@ -1,51 +1,38 @@
 -- 100_rates_short.sql
 -- One short rate per (NY business day, currency) for covered-interest-parity pricing.
 --
--- Source precedence per currency (ADR-0006): a primary market rate (3-month where FRED
--- carries one), falling back to the BIS daily policy rate when the primary is more than
--- 120 days stale. Rates are carried forward to daily with an ASOF JOIN on the date each
--- observation became AVAILABLE, not the date it describes: an OECD monthly rate is the
--- average of its month and is dated the 1st, so it is usable only from the 1st of the
--- following month. Joining on the reference date would let a backtest price a forward
--- with an average of days that had not happened yet. (Publication takes a few weeks
--- more; that residual lag is stated in ADR-0006, not modelled.) Daily series are
--- available on their own date. SGD has no public rate and is proxied by the USD rate,
+-- Every currency is priced off its central bank's policy rate (ADR-0015): one family of
+-- daily series, so the rate differential that sets carry compares like with like, and no
+-- rate is stale or published after the date it describes. The euro area uses the ECB
+-- deposit facility rate, which has anchored euro money-market rates since 2014; the BIS
+-- euro-area series (the main refinancing rate) is its fallback. Singapore has no policy
+-- rate (the MAS targets the exchange rate), so SGD is proxied by the USD rate and
 -- flagged is_proxy = true.
 --
--- Rates are in percent per annum as published; `basis` says how to read them
--- ('discount' for US T-bills, which Python converts to a simple yield; see the primer).
+-- Each rate is carried forward to every business day with an ASOF JOIN (a policy rate
+-- holds until it is changed). A fallback is used only when the primary series is more
+-- than 120 days stale.
 
 CREATE OR REPLACE TABLE rate_sources (
     ccy          VARCHAR NOT NULL,
     rank         INTEGER NOT NULL,   -- 1 = primary, 2 = fallback
     source       VARCHAR NOT NULL,
     series_id    VARCHAR NOT NULL,
-    tenor_months INTEGER NOT NULL,   -- 0 = overnight / policy
-    day_count    INTEGER NOT NULL,   -- 360 or 365
-    basis        VARCHAR NOT NULL    -- 'simple' | 'discount'
+    day_count    INTEGER NOT NULL    -- 360 or 365, the money-market convention
 );
 
 INSERT INTO rate_sources VALUES
-    ('USD', 1, 'fred', 'DTB3',            3, 360, 'discount'),
-    ('USD', 2, 'fred', 'SOFR',            0, 360, 'simple'),
-    ('CAD', 1, 'boc',  'TB.CDN.90D.MID',  3, 365, 'simple'),
-    ('CAD', 2, 'bis',  'D.CA',            0, 365, 'simple'),
-    ('EUR', 1, 'fred', 'IR3TIB01EZM156N', 3, 360, 'simple'),
-    ('EUR', 2, 'bis',  'D.XM',            0, 360, 'simple'),
-    ('GBP', 1, 'fred', 'IR3TIB01GBM156N', 3, 365, 'simple'),
-    ('GBP', 2, 'bis',  'D.GB',            0, 365, 'simple'),
-    ('JPY', 1, 'fred', 'IR3TIB01JPM156N', 3, 360, 'simple'),
-    ('JPY', 2, 'bis',  'D.JP',            0, 360, 'simple'),
-    ('AUD', 1, 'fred', 'IR3TIB01AUM156N', 3, 365, 'simple'),
-    ('AUD', 2, 'bis',  'D.AU',            0, 365, 'simple'),
-    ('CHF', 1, 'fred', 'IR3TIB01CHM156N', 3, 360, 'simple'),
-    ('CHF', 2, 'bis',  'D.CH',            0, 360, 'simple'),
-    ('MXN', 1, 'fred', 'IR3TIB01MXM156N', 3, 360, 'simple'),
-    ('MXN', 2, 'bis',  'D.MX',            0, 360, 'simple'),
-    ('BRL', 1, 'fred', 'IRSTCI01BRM156N', 0, 365, 'simple'),
-    ('BRL', 2, 'bis',  'D.BR',            0, 365, 'simple'),
-    ('INR', 1, 'fred', 'IRSTCI01INM156N', 0, 365, 'simple'),
-    ('INR', 2, 'bis',  'D.IN',            0, 365, 'simple');
+    ('USD', 1, 'bis', 'D.US',                      360),
+    ('EUR', 1, 'ecb', 'FM.D.U2.EUR.4F.KR.DFR.LEV', 360),
+    ('EUR', 2, 'bis', 'D.XM',                      360),
+    ('GBP', 1, 'bis', 'D.GB',                      365),
+    ('CAD', 1, 'bis', 'D.CA',                      365),
+    ('JPY', 1, 'bis', 'D.JP',                      360),
+    ('AUD', 1, 'bis', 'D.AU',                      365),
+    ('CHF', 1, 'bis', 'D.CH',                      360),
+    ('MXN', 1, 'bis', 'D.MX',                      360),
+    ('BRL', 1, 'bis', 'D.BR',                      365),
+    ('INR', 1, 'bis', 'D.IN',                      365);
 
 
 CREATE OR REPLACE TABLE rates_short AS
@@ -53,19 +40,13 @@ WITH calendar AS (
     SELECT DISTINCT obs_date FROM fx_usd_master
 ),
 obs AS (
-    -- every observation of every candidate series, with its metadata attached and the
-    -- first date on which it could have been known
+    -- every observation of every candidate series, with its metadata attached
     SELECT
-        r.ccy, r.rank, r.source, r.series_id, r.tenor_months, r.day_count, r.basis,
+        r.ccy, r.rank, r.source, r.series_id, r.day_count,
         o.obs_date AS rate_date,
-        CASE WHEN c.frequency = 'monthly'
-             THEN (o.obs_date + INTERVAL 1 MONTH)::DATE
-             ELSE o.obs_date
-        END        AS available_date,
         o.value    AS rate_pct
     FROM rate_sources     AS r
     JOIN raw_observations AS o USING (source, series_id)
-    JOIN series_catalog   AS c USING (source, series_id)
 ),
 grid AS (
     -- one row per (date, ccy, rank): the ASOF JOIN below needs the partition keys on
@@ -75,18 +56,17 @@ grid AS (
     CROSS JOIN (SELECT DISTINCT ccy, rank FROM rate_sources) AS r
 ),
 latest AS (
-    -- latest observation AVAILABLE on or before each date, per currency and rank;
-    -- days_stale is the age of the period it describes (from its reference date)
+    -- the rate in force on each date, per currency and rank
     SELECT
         g.obs_date, g.ccy, g.rank,
-        o.source, o.series_id, o.tenor_months, o.day_count, o.basis,
+        o.source, o.series_id, o.day_count,
         o.rate_date, o.rate_pct,
         g.obs_date - o.rate_date AS days_stale
     FROM grid AS g
     ASOF LEFT JOIN obs AS o
       ON o.ccy = g.ccy
      AND o.rank = g.rank
-     AND o.available_date <= g.obs_date
+     AND o.rate_date <= g.obs_date
 ),
 chosen AS (
     -- precedence: fresh primary, then fallback, then a stale primary rather than nothing
@@ -103,18 +83,17 @@ chosen AS (
     ) = 1
 )
 SELECT
-    obs_date, ccy, rate_pct, source, series_id, rate_date, days_stale,
-    tenor_months, day_count, basis,
+    obs_date, ccy, rate_pct, source, series_id, rate_date, days_stale, day_count,
     false        AS is_proxy,
     rank = 2     AS is_fallback
 FROM chosen
 
 UNION ALL
 
--- SGD: no public short rate; use the USD rate and say so
+-- SGD: no policy rate; use the USD rate and say so
 SELECT
     obs_date, 'SGD' AS ccy, rate_pct, 'proxy:USD' AS source, series_id, rate_date, days_stale,
-    tenor_months, day_count, basis,      -- same day count as USD so the proxy carry is exactly zero
+    day_count,           -- same day count as USD so the proxy carry is exactly zero
     true         AS is_proxy,
     rank = 2     AS is_fallback
 FROM chosen

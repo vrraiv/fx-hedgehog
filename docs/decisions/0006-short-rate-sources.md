@@ -1,6 +1,7 @@
 # ADR-0006: Short-rate sources per currency, including the SGD proxy
 
-**Status:** accepted, 2026-11-05
+**Status:** superseded by ADR-0015 (2026-11-09), which prices every currency off its
+central bank's policy rate. Kept as the record of the first design and its problems.
 
 ## Context
 

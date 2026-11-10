@@ -584,7 +584,7 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             f"overall **{d.quality_overall}** (`reports/quality_report.md`, "
             "`reports/alerts.md`). Sources are FRED H.10 noon rates (primary), Bank of Canada "
             "and ECB crosses (reconciliation and fallback), BIS policy rates and effective "
-            "exchange rates, OECD short rates via FRED, and US and Canadian retail sales for "
+            "exchange rates, the ECB deposit rate, and US and Canadian retail sales for "
             "the seasonality of the synthetic flows. The flows themselves are generated from "
             "`config/flows.yaml`; no real company's data is used.\n\n"
             + df_to_markdown(d.quality_summary),
@@ -810,10 +810,10 @@ def _limitations(d: ReportData, cov95: float, breaches: int, n_months: int) -> s
         "**Forwards only.** No options, no cross-currency basis, no NDF basis for BRL and "
         "INR; one-way spreads are stylized round numbers from `config/hedge.yaml` (hedging "
         "primer, section 5; backlog B3, B4, B18).",
-        "**Short rates are monthly OECD series for most currencies**, each month's average "
-        "used only once the month is over (so one to two months old when a forward is "
-        "priced), with BIS policy rates as the fallback when a series lags; the SGD rate is "
-        "a flagged USD proxy so SGD carry is zero by construction (ADR-0006, backlog B1, B2).",
+        "**Forwards are priced off central-bank policy rates**, the ECB deposit rate for the "
+        "euro area, so carry ignores rate changes expected within the month; one- and "
+        "three-month OIS rates would be better but are not freely available. The SGD rate is "
+        "a flagged USD proxy, so SGD carry is zero by construction (ADR-0015, backlog B1, B2).",
         "**Coverage is tested at one day.** The 21-day ES is a scaled one-day model; the "
         "overlapping-window tests at longer horizons have too little power to be decisive "
         "(ADR-0010, backlog B11).",

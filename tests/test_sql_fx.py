@@ -31,7 +31,8 @@ def test_raw_table_recovers_source_and_series_from_path(
     rows = con.execute(
         "SELECT source, series_id, count(*) FROM raw_observations GROUP BY ALL ORDER BY ALL"
     ).fetchall()
-    assert ("boc", "TB.CDN.90D.MID", len(mini.usd_per_eur)) in rows  # dots in ids survive
+    # dots in ids survive the path-to-id parsing
+    assert ("ecb", "FM.D.U2.EUR.4F.KR.DFR.LEV", len(mini.usd_per_eur)) in rows
     assert ("fred", "DEXUSEU", len(mini.dates)) in rows
     con.close()
 

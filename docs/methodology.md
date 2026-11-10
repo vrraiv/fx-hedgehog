@@ -32,12 +32,11 @@ forecasting, hedging, backtesting, reporting.
 
 ### 1.3 Interest rates
 
-* All rates are **annualized, in percent**, as published. Day-count conventions differ by
-  market (ACT/360 for USD money markets, ACT/365 for GBP and CAD T-bills); the hedging
-  primer states which one the forward-pricing code assumes and the error that assumption
-  introduces at the horizons used here (well below a basis point of forward points).
-* `DTB3` is a *discount-basis* T-bill rate; the primer explains the conversion to a simple
-  yield.
+* All rates are **annualized, in percent**, as published: central-bank policy rates for
+  every currency (ADR-0015). Day-count conventions differ by market (ACT/360 for USD, EUR,
+  JPY, CHF and MXN, ACT/365 for GBP, CAD, AUD, BRL and INR); the hedging primer states the
+  error the convention introduces at the horizons used here (well below a basis point of
+  forward points).
 
 ### 1.4 Calendar and horizons
 
@@ -55,7 +54,7 @@ forecasting, hedging, backtesting, reporting.
 | Primary USD crosses | FRED H.10 | `DEXUSEU`, `DEXUSUK`, `DEXCAUS`, `DEXJPUS`, `DEXUSAL`, `DEXSZUS`, `DEXMXUS`, `DEXBZUS`, `DEXINUS`, `DEXSIUS` | noon, New York |
 | Cross-check and fallback 1 | Bank of Canada Valet | `FXUSDCAD` + nine `FX*CAD` (2017-), legacy noon series `IEXE*` / `EUROCAE01` (2010-2017) | daily average (current) / noon (legacy), Toronto |
 | Cross-check and fallback 2 | ECB Data Portal | `EXR.D.<CCY>.EUR.SP00.A` for ten currencies | 14:15 CET |
-| Short rates | FRED (`DTB3`, `SOFR`, OECD `IR3TIB01*`, `IRSTCI01*`), BoC (`TB.CDN.90D.MID`), BIS `WS_CBPOL` | see ADR-0006 | |
+| Short rates | BIS `WS_CBPOL` policy rates; ECB deposit facility rate for the euro area | see ADR-0015 | |
 | Stress sanity check | BIS `WS_EER` nominal broad effective exchange rates, daily | | |
 | Flow seasonality | FRED `RSXFSN`/`RSXFS`; StatCan table 20-10-0056-01 | | |
 
@@ -240,11 +239,10 @@ Code: `fx_treasury_risk/hedge/`. Instrument mechanics: `docs/hedging-primer.md`.
 Formulation and solver: ADR-0012. Output: `reports/hedge_recommendation.md` and
 `reports/figures/hedge_frontier.png`.
 
-* **Short rates** (`sql/100_rates_short.sql`): per currency a primary 3-month market
-  rate where available, falling back to the BIS daily policy rate when the primary is
-  more than 120 days stale; series carried to daily with an ASOF JOIN on the date each
-  value became available (a monthly average from the 1st of the following month); SGD
-  proxied by USD and flagged. US T-bills converted from discount to simple yield.
+* **Short rates** (`sql/100_rates_short.sql`, ADR-0015): the central-bank policy rate for
+  every currency, daily (BIS `WS_CBPOL`; for the euro area the ECB deposit facility rate,
+  with the BIS refinancing-rate series as a fallback when it is more than 120 days
+  stale); SGD proxied by USD and flagged.
 * **Forwards:** covered interest parity with simple rates and per-market day counts,
   tenor = calendar days to the next rebalance (30 for the as-of table). Forward points
   and the annualized hedge cost rate `(S - F)/S * 365/days` are reported per currency.

@@ -5,8 +5,8 @@ deferred, and what it would take.
 
 | # | Item | Why deferred | Effort |
 |---|---|---|---|
-| B1 | **SGD short rate from MAS.** The MAS eservices API (`eservices.mas.gov.sg/api/action/datastore_search`) returned 404 on 2026-11-05 and the newer `apimg-gw` endpoint requires registration. v1 proxies the SGD rate with the USD rate and flags it (ADR-0006). | No verified keyless public endpoint. | 0.5 day once an endpoint is confirmed |
-| B2 | **Daily 3-month rates for EUR and GBP** (Euribor from the ECB portal, SONIA/term rates from the BoE). The OECD monthly series on FRED lag by up to ten months. | Two more loaders for a modest improvement in carry accuracy at the one-month horizon. | 1 day |
+| B1 | **SGD short rate from MAS.** The MAS eservices API (`eservices.mas.gov.sg/api/action/datastore_search`) returned 404 on 2026-11-05 and the newer `apimg-gw` endpoint requires registration. v1 proxies the SGD rate with the USD rate and flags it (ADR-0015). | No verified keyless public endpoint. | 0.5 day once an endpoint is confirmed |
+| B2 | **One- and three-month OIS rates** in place of policy rates for forward pricing (ADR-0015). Policy rates miss rate changes expected within the month. | No free, keyless source for ten currencies; `rates_short` is the only thing that would change. | 1 day once a source exists |
 | B3 | **Cross-currency basis** in forward pricing. | No public daily source for ten currencies. | depends on data |
 | B4 | **FX options** as a second instrument class. | Needs an implied-vol surface and a non-linear ES; see hedging primer section 5. | 3-5 days |
 | B5 | **Intraday/real-time rates.** | Out of scope for a daily treasury process. | n/a |
