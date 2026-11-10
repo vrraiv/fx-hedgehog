@@ -216,7 +216,8 @@ Code: `fx_treasury_risk/forecast/`. Choices and evidence: ADR-0011. Output:
 
 * **Target:** group net exposure per currency in currency units (`net_fcy` from
   `exposure_group_fx`), on the NY business-day calendar, 1-63 trading days ahead.
-* **Baseline:** seasonal naive at lag 21 trading days; intervals from its own in-window
+* **Baseline:** seasonal naive, the value on the same weekday four weeks earlier
+  (28k calendar days, last trading day on or before); intervals from its own in-window
   error quantiles per horizon.
 * **Model:** log exposure regressed on calendar features (weekday, 0-4 trading days to
   month end, first three trading days of the month, month of year, linear trend) with

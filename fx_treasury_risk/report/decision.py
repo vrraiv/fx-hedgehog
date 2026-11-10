@@ -760,12 +760,13 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
     sections.append(
         (
             "Exposure forecast and its calibration",
-            "The hedge is sized on the forecast of net exposure at the end of the next "
-            "rebalance period, not on today's book, because today's receivables will have "
+            "The hedge is sized on the forecast of net exposure averaged over the month the "
+            "forward covers, not on today's book, because today's receivables will have "
             "settled by then. The model is a calendar-structural regression of log exposure "
             "on weekday, month-end and month-start position, month and trend, with AR(1) "
             "errors (ADR-0011). Rolling-origin evaluation over monthly origins from "
-            f"{d.hcfg.oos_start.year - 1} against a seasonal-naive baseline:\n\n"
+            f"{d.hcfg.oos_start.year - 1} against a seasonal-naive baseline (the value on "
+            "the same weekday four weeks earlier):\n\n"
             + df_to_markdown(
                 _forecast_table(d),
                 decimals={
@@ -781,8 +782,11 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             f"{skill_21:.2f} (pinball loss reduced by {_pct(skill_21)}) and its nominal 95% "
             f"interval covers {_pct(cov95_21)} of outcomes. The intervals are therefore too "
             "narrow; the report states that rather than widening them after the fact, and "
-            "the hedge policy uses the median, not the band. The calibration figure shows "
-            "coverage by horizon and quantile.\n\n"
+            "the hedge policy uses the median, not the band. The skill is also an upper "
+            "bound: the regression has the same terms (weekday, month end, month, trend, "
+            "AR(1)) the synthetic flows were generated with, so it is correctly specified by "
+            "construction; on a real book it would have to find that structure. The "
+            "calibration figure shows coverage by horizon and quantile.\n\n"
             + _fig(figs, "calibration", "forecast calibration")
             + f"\n\nLatest {d.hcfg.horizon_days}-day-ahead forecast (currency units):\n\n"
             + df_to_markdown(
@@ -952,7 +956,9 @@ def _limitations(d: ReportData, cov95: float, opt: pd.Series, fh: pd.Series) -> 
         "policy would need an intra-month adjustment rule (backlog B17).",
         f"**Forecast intervals are too narrow.** The nominal 95% band covers {_pct(cov95)} at "
         f"the {d.hcfg.horizon_days}-day horizon (ADR-0011, backlog B16). The policy uses the "
-        "median, so this affects the risk statement, not the hedge sizes.",
+        "median, so this affects the risk statement, not the hedge sizes. Its skill is "
+        "flattered too: the model has the generator's own terms, a correct specification a "
+        "real book would not hand it.",
         "**Carry is an expected cost under a random-walk spot.** Realized hedging cost in the "
         "backtest includes the spot move and can have either sign; the carry signal itself "
         "is not a forecast of returns (hedging primer, section 3).",

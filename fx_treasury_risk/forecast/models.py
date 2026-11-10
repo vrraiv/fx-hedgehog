@@ -10,7 +10,7 @@ import pandas as pd
 from fx_treasury_risk.forecast.calendar import day_type_codes, feature_matrix, future_dates
 
 QUANTILES: tuple[float, ...] = (0.025, 0.10, 0.25, 0.50, 0.75, 0.90, 0.975)
-SEASON = 21  # trading days in a month
+SEASON_DAYS = 28  # seasonal naive: same weekday, four weeks earlier
 MAX_HORIZON = 63
 
 
@@ -49,27 +49,39 @@ def _error_quantiles(errors_by_h: list[np.ndarray]) -> np.ndarray:
 def seasonal_naive(
     y: pd.Series, calendar: pd.DatetimeIndex, horizon: int = MAX_HORIZON, window: int = 750
 ) -> Forecast:
-    """Repeat the value from ``SEASON`` trading days earlier; empirical error quantiles.
+    """Repeat the value on the same weekday four weeks earlier; empirical error quantiles.
 
-    Point forecast for horizon ``h`` is ``y[T + h - SEASON * ceil(h / SEASON)]``. Interval
-    width at each horizon comes from the quantiles of the model's own log errors at that
-    horizon over the training window, so it widens with the horizon automatically.
+    The target date ``d`` takes the value at ``d - 28k`` calendar days (the last trading
+    day on or before it, if that day is a holiday), with ``k`` the fewest four-week steps
+    that reach back to the origin. Four weeks rather than "21 trading days" keeps the
+    weekday: flows have a weekday pattern, and a lag that drifts across weekdays would make
+    the baseline weaker than a treasury analyst's obvious first guess. Interval width at
+    each horizon comes from the quantiles of the same rule's log errors over the training
+    window, so it widens with ``k``.
     """
     yv = y.to_numpy(dtype=float)
+    hist = pd.DatetimeIndex(y.index)
     n = len(yv)
-    origin = pd.Timestamp(y.index[-1])
-    points = np.empty(horizon)
+    origin = pd.Timestamp(hist[-1])
+    dates = future_dates(origin, horizon, calendar)
+    ks = np.ceil((dates - origin).days.to_numpy() / SEASON_DAYS).astype(int)
+    points = yv[_lag_index(hist, dates, ks)]
+    start = max(0, n - window)
     errors = []
-    start = max(SEASON, n - window)
-    for h in range(1, horizon + 1):
-        lag = SEASON * int(np.ceil(h / SEASON))
-        points[h - 1] = yv[n - 1 + h - lag]
-        t = np.arange(max(start, lag), n)
-        errors.append(np.log(yv[t] / yv[t - lag]))
+    for k in ks:
+        src = _lag_index(hist, hist[start:], np.full(n - start, k))
+        ok = src >= 0
+        t = np.arange(start, n)[ok]
+        errors.append(np.log(yv[t] / yv[src[ok]]))
     out = points[:, None] * np.exp(_error_quantiles(errors))
-    return Forecast(
-        "seasonal_naive", origin, future_dates(origin, horizon, calendar), out, f"season={SEASON}"
-    )
+    return Forecast("seasonal_naive", origin, dates, out, f"season={SEASON_DAYS}d")
+
+
+def _lag_index(hist: pd.DatetimeIndex, targets: pd.DatetimeIndex, k: np.ndarray) -> np.ndarray:
+    """Row of ``hist`` on or before ``target - 28k`` days; -1 if before the sample."""
+    src = targets - pd.to_timedelta(SEASON_DAYS * np.asarray(k), unit="D")
+    out: np.ndarray = hist.searchsorted(src, side="right") - 1
+    return out
 
 
 # ---------------------------------------------------------------------------------------
