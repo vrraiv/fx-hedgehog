@@ -137,3 +137,9 @@ def test_replay_returns_and_stress_table() -> None:
     assert hist.pnl_usd == pytest.approx(1e6 * (0.1 - 0.1), abs=1)
     usd_up = t[t.scenario == "usd_up_10"].iloc[0]
     assert usd_up.pnl_usd == pytest.approx(2e6 * (np.exp(-0.1) - 1))
+
+
+def test_implied_moves_lists_unnamed_currencies_by_size() -> None:
+    shock = pd.Series({"JPY": 0.10, "BRL": 0.017, "AUD": 0.039, "EUR": 0.036, "INR": 0.006})
+    text = stress.implied_moves(shock, {"JPY": 0.10})
+    assert text == "AUD +3.9%, EUR +3.6%, BRL +1.7%"

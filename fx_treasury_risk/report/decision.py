@@ -207,7 +207,7 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         stress = _read(con, "stress_results")
         stress = (
             stress.pivot_table(
-                index=["scenario", "kind", "largest_move", "propagated"],
+                index=["scenario", "kind", "largest_move", "propagated", "implied_moves"],
                 columns="basis",
                 values="pnl_usd",
                 aggfunc="first",
@@ -492,6 +492,7 @@ def _stress_table(d: ReportData) -> pd.DataFrame:
         columns={
             "largest_move": "largest move",
             "propagated": "others propagated",
+            "implied_moves": "largest implied moves",
             "net_of_hedges": "net of hedges",
         }
     )
@@ -825,7 +826,9 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             "Historical replays of five episodes and four hypothetical shocks applied to the "
             f"net exposure on {d.as_of.date()}, P&L in USD m. *Propagated* means the shock is "
             "given to the named currencies and the others move by their Gaussian conditional "
-            "expectation; otherwise only the named currencies move.\n\n"
+            "expectation under the 1,000-day covariance, listed as the largest implied moves; "
+            "otherwise only the named currencies move. Shocks are quoted against USD, so a "
+            "conditional move partly expresses broad USD strength or weakness.\n\n"
             + df_to_markdown(_stress_table(d), decimals={"net": 1, "net of hedges": 1}),
         )
     )

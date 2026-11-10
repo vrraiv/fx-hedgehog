@@ -206,7 +206,8 @@ Code: `fx_treasury_risk/risk/`. Choices: ADR-0009.
   copula over EWMA correlations, t marginals and `h` compounded daily steps.
 * **Stress:** historical replays (CHF 2015, Brexit 2016, March 2020, USD surge 2022,
   taper tantrum 2013) and hypothetical shocks with Gaussian conditional propagation to
-  unnamed currencies, reported with and without propagation.
+  unnamed currencies under the 1,000-day sample covariance, reported with and without
+  propagation and with the largest implied moves listed.
 * **Output:** `risk_results` and `stress_results` in DuckDB; `reports/risk_tables.md`.
 
 ## 6. Exposure forecasting
