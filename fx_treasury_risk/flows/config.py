@@ -43,7 +43,7 @@ class FlowConfig:
 
     seed: int
     start: date
-    end: date
+    end: date | None  # None = 'auto': resolved from the FX data by the flows stage
     take_rate: float
     refund_rate: float
     refund_mean_lag_days: int
@@ -116,7 +116,7 @@ def load_flow_config(path: Path = DEFAULT_PATH) -> FlowConfig:
     return FlowConfig(
         seed=int(raw["seed"]),
         start=_as_date(raw["start"]),
-        end=_as_date(raw["end"]),
+        end=None if str(raw["end"]).strip().lower() == "auto" else _as_date(raw["end"]),
         take_rate=float(raw["take_rate"]),
         refund_rate=float(raw["refund"]["rate"]),
         refund_mean_lag_days=int(raw["refund"]["mean_lag_days"]),

@@ -163,3 +163,29 @@ def test_calibration_from_cache_has_retail_shape() -> None:
         assert f.shape == (12,) and abs(f.mean() - 1) < 1e-12
         assert f[0] < 0.95 and f[1] < 0.95  # January and February are weak retail months
     assert us[11] > 1.08  # US December holiday season
+
+
+def test_extending_the_horizon_does_not_rewrite_history(cfg: FlowConfig) -> None:
+    """A data refresh moves the end date; flows already generated must not change."""
+    profiles = {"US": FLAT, "CA": FLAT}
+    short = generate(FlowConfig(**{**_short(cfg, 1).__dict__, "end": date(2019, 6, 30)}), profiles)
+    long = generate(FlowConfig(**{**_short(cfg, 1).__dict__, "end": date(2019, 12, 31)}), profiles)
+    keys = ["date", "entity", "ccy", "flow_type"]
+    cutoff = pd.Timestamp("2019-06-30")
+    a = short[short["date"] <= cutoff].set_index(keys)["amount"].sort_index()
+    b = long[long["date"] <= cutoff].set_index(keys)["amount"].sort_index()
+    pd.testing.assert_series_equal(a, b)
+
+
+def test_auto_end_is_the_month_end_of_the_latest_fx_fixing(
+    cfg: FlowConfig, tmp_paths: config.Paths, mini: object
+) -> None:
+    from fx_treasury_risk.flows.pipeline import resolve_end
+
+    cache = SeriesCache(tmp_paths.cache_dir)  # the mini cache's FRED FX ends 2017-01-31
+    auto = FlowConfig(**{**cfg.__dict__, "end": None})
+    assert resolve_end(auto, cache).end == date(2017, 1, 31)
+    fixed = FlowConfig(**{**cfg.__dict__, "end": date(2020, 6, 30)})
+    assert resolve_end(fixed, cache).end == date(2020, 6, 30)
+    with pytest.raises(ValueError, match="unresolved"):
+        generate(auto, {"US": FLAT, "CA": FLAT})
