@@ -194,6 +194,32 @@ forward 50% of last month's average net exposure in each non-USD currency for on
 `exposure_group_fx` is group net exposure by currency on the FX calendar, in currency
 units and USD, with and without hedges. The risk engine reads only this table.
 
+### 4.5 What kind of exposure this is: economic, not accounting
+
+The number hedged is the **consolidated net position per currency**: every entity's
+balances in a currency are added, whichever entity holds them, and the sum is valued in
+USD. That is the group's economic exposure to the currency, and it is the right target
+for protecting the USD value of the group. It is not what an accountant would call the
+exposure, because accounting splits the same balances in two:
+
+* **Transaction exposure**: monetary items an entity holds in a currency other than its
+  own functional currency (the US parent's EUR receivables and its EUR loan to the
+  euro-area subsidiary, the UK entity's EUR balances). These are remeasured through
+  earnings every period.
+* **Translation exposure**: an entity's position in its *own* functional currency (the
+  euro-area entity's EUR payables to merchants and its EUR loan from the parent). These
+  create no gain or loss in the entity's books; they move equity, not earnings, when the
+  subsidiary is translated into USD on consolidation.
+
+On 2026-10-30 the two parts are USD +286m of transaction exposure and USD -165m of
+translation exposure, which net to USD 121m across the ten currencies. In EUR the parent
+and the UK entity are long USD 73.5m while the euro-area entity owes USD 61.8m in its
+own currency, so the model sees USD 11.7m. A treasury that hedges **reported earnings**
+would hedge nearer the 73.5m; one that hedges **economic value**, as here, hedges the
+net. Neither is wrong, but they are different programmes with different sizes, and the
+model implements only the second. The split by entity is in `exposure_waterfall`;
+separating the two in the optimizer and the backtest is backlog B21.
+
 ## 5. Risk engine
 
 Code: `fx_treasury_risk/risk/`. Choices: ADR-0009.

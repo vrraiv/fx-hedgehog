@@ -236,6 +236,12 @@ optimizer's monthly positions replace it in the waterfall and the risk engine. D
   backlog B2).
 * **Forwards only; no options, no cross-currency basis, no NDF basis** (hedging primer,
   section 5).
+* **Economic exposure, not accounting exposure.** The model hedges the consolidated net
+  position per currency. It does not separate transaction exposure (an entity's balances
+  in a foreign currency, which hit earnings) from translation exposure (a subsidiary's
+  position in its own currency, which hits equity): USD +286m and -165m on 2026-10-30. A
+  programme that targets reported earnings would be sized differently (methodology 4.5,
+  backlog B21).
 * **Fixing-time mismatch** between sources is tolerated, not modelled.
 * **Weekday calendar**, no holidays, for settlement and payouts (backlog B9).
 * **Coverage tests at one day only.** Ten- and 21-day numbers are reported with a

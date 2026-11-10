@@ -914,6 +914,12 @@ def _limitations(d: ReportData, cov95: float, opt: pd.Series, fh: pd.Series) -> 
         "**Carry is an expected cost under a random-walk spot.** Realized hedging cost in the "
         "backtest includes the spot move and can have either sign; the carry signal itself "
         "is not a forecast of returns (hedging primer, section 3).",
+        "**Economic exposure, not accounting exposure.** The hedge is sized on the "
+        "consolidated net position per currency. Transaction exposure (an entity's balances "
+        "in a foreign currency, remeasured through earnings) and translation exposure (a "
+        "subsidiary's position in its own currency, which moves equity on consolidation) "
+        "are netted, so the programme protects the USD value of the group, not reported "
+        "earnings (methodology 4.5, backlog B21).",
         "**Forwards only.** No options, no cross-currency basis, no NDF basis for BRL and "
         "INR; one-way spreads are stylized round numbers from `config/hedge.yaml` (hedging "
         "primer, section 5; backlog B3, B4, B18).",
