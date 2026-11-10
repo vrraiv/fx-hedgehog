@@ -14,7 +14,12 @@ from fx_treasury_risk.hedge import optimizer as opt
 from fx_treasury_risk.hedge import plots
 from fx_treasury_risk.hedge.config import HedgeConfig, load_hedge_config
 from fx_treasury_risk.hedge.rates import forward_table_on
-from fx_treasury_risk.hedge.sizing import holding_month, holding_month_mean
+from fx_treasury_risk.hedge.sizing import (
+    holding_month,
+    holding_month_mean,
+    legacy_ratios,
+    load_legacy_notionals,
+)
 from fx_treasury_risk.report.tables import df_to_markdown, write_markdown
 from fx_treasury_risk.risk import covariance as cv
 from fx_treasury_risk.risk.returns import fx_returns
@@ -109,7 +114,7 @@ def run_hedge(paths: config.Paths, hcfg: HedgeConfig | None = None) -> HedgeRun:
         # every rebalance; today's recommendation starts from the last of them so the
         # turnover penalty measures change against the position actually in force
         prev = pd.DataFrame()
-        if _table_exists(con, "policy_decisions"):
+        if db.table_exists(con, "policy_decisions"):
             prev = con.execute(
                 "SELECT * FROM policy_decisions WHERE policy = 'optimizer' "
                 "ORDER BY rebalance DESC LIMIT 1"
@@ -121,8 +126,17 @@ def run_hedge(paths: config.Paths, hcfg: HedgeConfig | None = None) -> HedgeRun:
         front = opt.frontier(prob, n_points=30, min_ticket_usd=hcfg.min_ticket_usd)
         per_year = 365 / prob.tenor_days
         reference = {}
-        for name, ratio in (("unhedged", 0.0), ("legacy_50", 0.5), ("full_hedge", 1.0)):
-            h = np.full(len(prob.ccys), ratio)
+        k = len(prob.ccys)
+        legacy = legacy_ratios(
+            load_legacy_notionals(con, prob.ccys),
+            holding_month(as_of),
+            expo_fcy.to_numpy(dtype=float),
+        )
+        for name, h in (
+            ("unhedged", np.zeros(k)),
+            ("legacy_50", legacy),
+            ("full_hedge", np.ones(k)),
+        ):
             reference[name] = (
                 prob.residual_es(h),
                 (prob.carry_cost(h) + prob.spread_cost(h)) * per_year,
@@ -177,14 +191,6 @@ def run_hedge(paths: config.Paths, hcfg: HedgeConfig | None = None) -> HedgeRun:
     finally:
         con.close()
     return HedgeRun(as_of, prob, sol, fwd, front, expo_fcy, source)
-
-
-def _table_exists(con: duckdb.DuckDBPyConnection, name: str) -> bool:
-    return bool(
-        con.execute(
-            "SELECT 1 FROM information_schema.tables WHERE table_name = ?", [name]
-        ).fetchall()
-    )
 
 
 def _write_report(
@@ -261,10 +267,13 @@ def _write_report(
                 f"covariance at {hcfg.horizon_days} days / {hcfg.confidence:.0%}. Forwards: "
                 f"{hcfg.forward_tenor_days}-day tenor priced by CIP.",
             ),
-            ("Headline", df_to_markdown(head)),
-            ("Recommended hedge ratios by currency", df_to_markdown(rec, index=True)),
-            ("Reference policies at today's exposures", df_to_markdown(ref)),
-            ("Frontier (every other point)", df_to_markdown(fr.iloc[::2])),
+            ("Headline", df_to_markdown(head, readable=True)),
+            (
+                "Recommended hedge ratios by currency",
+                df_to_markdown(rec.rename_axis("ccy"), index=True, readable=True),
+            ),
+            ("Reference policies at today's exposures", df_to_markdown(ref, readable=True)),
+            ("Frontier (every other point)", df_to_markdown(fr.iloc[::2], readable=True)),
             ("Figure", "![frontier](figures/hedge_frontier.png)"),
         ],
     )

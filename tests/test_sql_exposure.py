@@ -160,6 +160,10 @@ def test_legacy_hedge_is_half_of_last_months_average(
         assert pd.Timestamp(first.trade_date).date().isoformat() == "2017-01-01"
         assert pd.Timestamp(first.maturity_date).date().isoformat() == "2017-02-01"
         assert h.iloc[0].notional_fcy == pytest.approx(-50.0)
+        # January's average also sets the programme's next trade, after the data ends
+        nxt = h.iloc[1]
+        assert pd.Timestamp(nxt.trade_date).date().isoformat() == "2017-02-01"
+        assert nxt.notional_fcy == pytest.approx(-50.0)
         w = con.execute(
             "SELECT net_fcy, hedge_fcy, net_of_hedges_fcy FROM exposure_waterfall "
             "WHERE entity='EA' AND ccy='EUR' AND exposure_date = DATE '2017-01-15'"

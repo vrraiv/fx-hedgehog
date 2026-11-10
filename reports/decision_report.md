@@ -2,13 +2,13 @@
 
 ## Summary
 
-Generated 2026-11-10 17:04 UTC from market data retrieved 2026-11-06 to 2026-11-10; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, averaged over the trading days of 2026-11.
+Generated 2026-11-10 17:40 UTC from market data retrieved 2026-11-06 to 2026-11-10; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, averaged over the trading days of 2026-11.
 
 ## The question and the answer
 
 *For a fixed Expected Shortfall budget at the 21-day horizon, what hedge ratios by currency minimise expected hedging cost, and how would that policy have performed out of sample from 2015 to the present, including March 2020 and 2022?*
 
-**With a 21-day 99% Expected Shortfall budget of USD 4m, hedge EUR, GBP, CAD, JPY, AUD, CHF, SGD in full; BRL 69%; leave MXN, INR unhedged.** That programme earns about USD 0.4m a year of carry against USD 0.3m of bid-ask spread, and cuts the ES of the forecast book from USD 12.9m to USD 4.0m. Out of sample from 2015 with a monthly rebalance (142 months), the policy's annualized P&L volatility is USD 4.6m against 10.0m unhedged and 2.3m for a full hedge; its total P&L is USD -6.6m (-23.8m unhedged, -20.8m full hedge), its maximum drawdown USD -18.5m (-36.3m unhedged). Its monthly loss exceeded its own ex-ante 99% VaR in 5 of 142 months, against about 1.4 expected if the risk model is right: too many (binomial p = 0.015). The monthly VaR covers the hedged forecast exposure only, so forecast error and intra-month exposure swings add risk it does not count. Its USD 14.2m lead over a full hedge is not statistically distinguishable from zero over 142 months (p = 0.34): it collected USD 39.8m more carry net of spread, which is known when the forwards are dealt, and lost USD 25.6m on the currency risk it left open, which is not.
+**With a 21-day 99% Expected Shortfall budget of USD 4m, hedge EUR, GBP, CAD, JPY, AUD, CHF, SGD in full; BRL 69%; leave MXN, INR unhedged.** That programme earns about USD 0.4m a year of carry against USD 0.3m of bid-ask spread, and cuts the ES of the forecast book from USD 12.9m to USD 4.0m. Out of sample from 2015 with a monthly rebalance (142 months), the policy's annualized P&L volatility is USD 4.6m against 10.0m unhedged and 2.3m for a full hedge; its total P&L is USD -6.6m (-23.8m unhedged, -20.8m full hedge), its maximum drawdown USD -18.4m (-36.3m unhedged). Its monthly loss exceeded its own ex-ante 99% VaR in 5 of 142 months, against about 1.4 expected if the risk model is right: too many (binomial p = 0.015). The monthly VaR covers the hedged forecast exposure only, so forecast error and intra-month exposure swings add risk it does not count. Its USD 14.2m lead over a full hedge is not statistically distinguishable from zero over 142 months (p = 0.34): it collected USD 39.8m more carry net of spread, which is known when the forwards are dealt, and lost USD 25.5m on the currency risk it left open, which is not.
 
 | ccy | forecast exposure (USD m) | hedge ratio | forward notional (USD m) | carry % / yr (+ = costs) | spread bp | rate source |
 |---|---|---|---|---|---|---|
@@ -180,7 +180,7 @@ The frontier traces the minimum expected hedging cost (carry plus spread, per ye
 | policy | residual ES (USD m) | expected cost (USD m / yr, + = cost) |
 |---|---|---|
 | unhedged | 12.89 | 0.00 |
-| legacy 50% | 6.45 | 1.13 |
+| legacy 50% | 6.57 | 1.16 |
 | full hedge | 0.00 | 2.26 |
 | optimizer | 4.00 | -0.02 |
 
@@ -195,13 +195,13 @@ Walk-forward backtest, monthly rebalance from 2015-01-01, one-month forwards pri
 | policy | P&L vol / yr | total P&L | hedging cost / yr (+ = cost) | max drawdown | worst month | months loss > ex-ante VaR | months losing > USD 4m | share of months budget binds |
 |---|---|---|---|---|---|---|---|---|
 | unhedged | 10.0 | -23.8 | 0.0 | -36.3 | -7.2 | 3 | 12 | 0.00 |
-| legacy 50% | 5.2 | -22.3 | 1.2 | -26.1 | -4.3 | 4 | 1 | 0.00 |
+| legacy 50% | 5.3 | -22.9 | 1.3 | -26.2 | -3.8 | 4 | 0 | 0.00 |
 | full hedge | 2.3 | -20.8 | 2.5 | -22.5 | -2.4 | 80 | 0 | 0.00 |
-| optimizer | 4.6 | -6.6 | -0.9 | -18.5 | -5.0 | 5 | 1 | 0.57 |
+| optimizer | 4.6 | -6.6 | -0.9 | -18.4 | -5.0 | 5 | 1 | 0.58 |
 
 USD m. Hedging cost is carry plus bid-ask spread per year, positive when the hedges cost money, the same convention as the frontier above. Months losing more than the budget is a plain loss frequency, comparable across policies; the model test is the count of months beyond each policy's own ex-ante 99% VaR, about 1% of months if the model is right. A full hedge of the forecast has no ex-ante risk in the model, so every month it loses counts: its risk is all forecast error.
 
-Mean optimizer hedge ratio over the backtest: EUR 1.00, GBP 1.00, CAD 1.00, JPY 0.94, AUD 0.97, CHF 0.99, MXN 0.19, BRL 0.08, INR 0.00, SGD 0.98.
+Mean optimizer hedge ratio over the backtest: EUR 1.00, GBP 1.00, CAD 1.00, JPY 0.94, AUD 0.96, CHF 0.99, MXN 0.19, BRL 0.08, INR 0.00, SGD 0.98.
 
 ![cumulative P&L by policy](figures/policy_cumulative_pnl.png)
 
@@ -211,10 +211,10 @@ Mean optimizer hedge ratio over the backtest: EUR 1.00, GBP 1.00, CAD 1.00, JPY 
 
 | month | unhedged | legacy 50% | full hedge | optimizer | optimizer ex-ante ES |
 |---|---|---|---|---|---|
-| 2020-03 | -6.7 | -3.2 | 0.4 | -5.0 | 3.7 |
+| 2020-03 | -6.7 | -3.7 | 0.4 | -5.0 | 3.7 |
 | 2020-04 | 0.2 | 0.2 | 0.1 | -0.1 | 4.0 |
 | 2022-09 | -5.1 | -2.3 | 0.6 | -0.3 | 4.0 |
-| 2022-10 | 0.5 | -0.2 | -0.8 | -0.4 | 4.0 |
+| 2022-10 | 0.5 | -0.1 | -0.8 | -0.4 | 4.0 |
 
 The optimizer's worst of the four was 2020-03 at USD -5.0m against an ex-ante ES of 3.7m: the budget bounds the risk of the hedged *forecast* exposure, not forecast error or intra-month exposure swings, which is also why the full hedge keeps USD 2.3m of annual P&L volatility.
 
@@ -223,17 +223,17 @@ The optimizer's worst of the four was 2020-03 at USD -5.0m against an ex-ante ES
 | year | unhedged | legacy 50% | full hedge | optimizer | optimizer months losing > USD 4m |
 |---|---|---|---|---|---|
 | 2015 | -14.2 | -8.7 | -3.2 | -7.8 | 0 |
-| 2016 | -2.7 | -3.7 | -4.8 | 0.7 | 0 |
-| 2017 | 9.1 | 3.4 | -2.4 | 2.7 | 0 |
-| 2018 | -8.9 | -5.2 | -1.5 | -3.6 | 0 |
-| 2019 | 1.8 | 0.7 | -0.3 | 1.8 | 0 |
-| 2020 | 4.1 | 2.4 | 0.6 | -3.2 | 1 |
-| 2021 | -7.7 | -4.7 | -1.8 | -1.0 | 0 |
-| 2022 | -5.2 | -2.3 | 0.6 | 3.6 | 0 |
-| 2023 | 8.6 | 3.3 | -1.9 | 5.6 | 0 |
+| 2016 | -2.7 | -3.6 | -4.8 | 0.8 | 0 |
+| 2017 | 9.1 | 3.2 | -2.4 | 2.7 | 0 |
+| 2018 | -8.9 | -5.5 | -1.5 | -3.6 | 0 |
+| 2019 | 1.8 | 0.6 | -0.3 | 1.8 | 0 |
+| 2020 | 4.1 | 2.2 | 0.6 | -3.2 | 1 |
+| 2021 | -7.7 | -5.0 | -1.8 | -1.0 | 0 |
+| 2022 | -5.2 | -2.0 | 0.6 | 3.6 | 0 |
+| 2023 | 8.6 | 3.5 | -1.9 | 5.6 | 0 |
 | 2024 | -18.5 | -9.6 | -0.6 | -7.7 | 0 |
-| 2025 | 14.5 | 5.7 | -3.1 | 4.8 | 0 |
-| 2026 | -4.5 | -3.5 | -2.4 | -2.4 | 0 |
+| 2025 | 14.5 | 5.8 | -3.1 | 4.8 | 0 |
+| 2026 | -4.5 | -3.9 | -2.4 | -2.4 | 0 |
 
 ![monthly P&L distribution by policy](figures/policy_monthly_pnl.png)
 
@@ -243,6 +243,7 @@ The optimizer's worst of the four was 2020-03 at USD -5.0m against an ex-ante ES
 * **The ES budget covers the hedged forecast exposure only.** Forecast error and intra-month exposure variation are outside it: the model sees no risk in a full hedge of the forecast, yet that policy keeps USD 2.3m of annual P&L volatility (ADR-0013). Its monthly loss exceeded its own ex-ante 99% VaR in 5 of 142 months, against about 1.4 expected if the risk model is right: too many (binomial p = 0.015). The monthly VaR covers the hedged forecast exposure only, so forecast error and intra-month exposure swings add risk it does not count. A budget meant to bound realized monthly loss would need to be set lower, or the policy would need an intra-month adjustment rule (backlog B17).
 * **Forecast intervals are too narrow.** The nominal 95% band covers 85% at the 21-day horizon (ADR-0011, backlog B16). The policy uses the median, so this affects the risk statement, not the hedge sizes. Its skill is flattered too: the model has the generator's own terms, a correct specification a real book would not hand it.
 * **Carry is an expected cost under a random-walk spot.** Realized hedging cost in the backtest includes the spot move and can have either sign; the carry signal itself is not a forecast of returns (hedging primer, section 3).
+* **Economic exposure, not accounting exposure.** The hedge is sized on the consolidated net position per currency. Transaction exposure (an entity's balances in a foreign currency, remeasured through earnings) and translation exposure (a subsidiary's position in its own currency, which moves equity on consolidation) are netted, so the programme protects the USD value of the group, not reported earnings (methodology 4.5, backlog B21).
 * **Forwards only.** No options, no cross-currency basis, no NDF basis for BRL and INR; one-way spreads are stylized round numbers from `config/hedge.yaml` (hedging primer, section 5; backlog B3, B4, B18).
 * **Forwards are priced off central-bank policy rates**, the ECB deposit rate for the euro area, so carry ignores rate changes expected within the month; one- and three-month OIS rates would be better but are not freely available. The SGD rate is a flagged USD proxy, so SGD carry is zero by construction (ADR-0015, backlog B1, B2).
 * **Coverage is tested at one day.** The 21-day ES is a scaled one-day model; the overlapping-window tests at longer horizons have too little power to be decisive (ADR-0010, backlog B11).

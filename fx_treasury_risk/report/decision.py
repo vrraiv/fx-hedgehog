@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import SupportsFloat, cast
@@ -25,6 +24,13 @@ from fx_treasury_risk import __version__, config, db
 from fx_treasury_risk.backtest.var_backtest import method_for_ewma
 from fx_treasury_risk.hedge.config import HedgeConfig, load_hedge_config
 from fx_treasury_risk.report import plots
+from fx_treasury_risk.report.labels import (
+    POLICY_LABELS,
+    SCENARIO_LABELS,
+    TOTAL_LABEL,
+    VAR_METHOD_LABELS,
+    risk_label,
+)
 from fx_treasury_risk.report.tables import df_to_markdown, fmt, write_markdown
 
 log = logging.getLogger(__name__)
@@ -32,54 +38,6 @@ log = logging.getLogger(__name__)
 REPORT_NAME = "decision_report.md"
 STRESS_MONTHS = ("2020-03", "2020-04", "2022-09", "2022-10")
 SHOW_HORIZONS = (1, 5, 10, 21, 42, 63)
-POLICY_LABELS = {
-    "unhedged": "unhedged",
-    "legacy_50": "legacy 50%",
-    "full_hedge": "full hedge",
-    "optimizer": "optimizer",
-}
-# Display names for identifiers that the stages store in machine-friendly form. Anything
-# not listed is printed as stored, so a new method or scenario never breaks the report.
-RISK_METHOD_LABELS = {
-    "historical": "historical simulation",
-    "parametric_normal": "normal",
-    "parametric_t": "Student-t",
-    "monte_carlo_t": "Monte Carlo, t copula",
-}
-COV_LABELS = {
-    "none": "",
-    "sample": "sample covariance",
-    "ledoit_wolf": "Ledoit-Wolf",
-    "ewma_0.94": "EWMA 0.94",
-    "ewma_0.97": "EWMA 0.97",
-}
-VAR_METHOD_LABELS = {
-    "historical": "historical simulation",
-    "normal_sample": "normal, sample covariance",
-    "normal_ewma": "normal, EWMA 0.94",
-    "t_ewma": "Student-t, EWMA 0.94",
-    "t_ewma97": "Student-t, EWMA 0.97",
-    "t_garch": "Student-t, GARCH(1,1) volatilities",
-}
-SCENARIO_LABELS = {
-    "chf_depeg_2015": "CHF floor removed, Jan 2015",
-    "brexit_2016": "Brexit vote, Jun 2016",
-    "covid_2020": "Dash for dollars, Mar 2020",
-    "usd_surge_2022": "USD surge, Aug-Sep 2022",
-    "taper_tantrum_2013": "Taper tantrum, May-Aug 2013",
-    "usd_up_10": "USD +10% against all",
-    "em_selloff_15": "EM selloff (BRL, MXN -15%, INR -10%)",
-    "eur_down_10": "EUR -10%",
-    "jpy_up_10": "JPY +10%",
-}
-TOTAL_LABEL = "total (absolute values)"
-
-
-def _risk_label(label: str) -> str:
-    method, _, cov = label.partition(" / ")
-    m = RISK_METHOD_LABELS.get(method, method)
-    c = COV_LABELS.get(cov, cov)
-    return f"{m}, {c}" if c else m
 
 
 @dataclass
@@ -119,24 +77,14 @@ def _read(con: duckdb.DuckDBPyConnection, name: str) -> pd.DataFrame:
     return con.execute(f"SELECT * FROM {name}").df()
 
 
-def _parse_quality(path: Path) -> tuple[str, pd.DataFrame]:
-    """Overall status and the summary table of ``reports/quality_report.md``.
-
-    The quality stage writes markdown, not a table, so the report re-reads that file
-    rather than re-running the checks; the summary table is the block before ``## Details``.
-    """
-    if not path.exists():
+def _load_quality(con: duckdb.DuckDBPyConnection) -> tuple[str, pd.DataFrame]:
+    """Overall status and the per-check summary the quality stage stored."""
+    if not db.table_exists(con, "quality_checks"):
         return "not run", pd.DataFrame(columns=["check", "status", "summary"])
-    text = path.read_text(encoding="utf-8")
-    m = re.search(r"overall \*\*(\w+)\*\*", text)
-    overall = m.group(1) if m else "unknown"
-    rows = []
-    for line in text.split("## Details")[0].splitlines():
-        if line.startswith("| ") and not line.startswith("| check") and "---" not in line:
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if len(cells) == 3:
-                rows.append(dict(zip(("check", "status", "summary"), cells, strict=True)))
-    return overall, pd.DataFrame(rows)
+    checks = _read(con, "quality_checks").rename(columns={"check_name": "check"})
+    statuses = set(checks["status"])
+    overall = "FAIL" if "FAIL" in statuses else ("WARN" if "WARN" in statuses else "PASS")
+    return overall, checks
 
 
 def _retrieved_on(paths: config.Paths) -> str:
@@ -156,7 +104,7 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
     con = db.connect(paths)
     try:
         for t in ("hedge_headline", "policy_backtest_summary", "forecast_eval", "risk_results"):
-            if not _table_exists(con, t):
+            if not db.table_exists(con, t):
                 raise RuntimeError(f"table {t} missing: run the earlier stages (`fxrisk all`)")
         db.execute_file(con, "110_report_views")
 
@@ -191,7 +139,7 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         var_backtest = _read(con, "var_backtest_results")
         var_selection = (
             _read(con, "var_model_selection")
-            if _table_exists(con, "var_model_selection")
+            if db.table_exists(con, "var_model_selection")
             else pd.DataFrame()
         )
         rr = _read(con, "risk_results")
@@ -227,9 +175,10 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         pm["month"] = pd.DatetimeIndex(pm["rebalance"]).strftime("%Y-%m")
         policy_months = pm[pm["month"].isin(STRESS_MONTHS)]
         policy_by_year = _read(con, "policy_backtest_by_year")
+        overall, qsum = _load_quality(con)
         policy_comparison = (
             _read(con, "policy_comparison")
-            if _table_exists(con, "policy_comparison")
+            if db.table_exists(con, "policy_comparison")
             else pd.DataFrame()
         )
         dec = _read(con, "policy_decisions")
@@ -240,7 +189,6 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
     finally:
         con.close()
 
-    overall, qsum = _parse_quality(paths.reports_dir / "quality_report.md")
     return ReportData(
         as_of=as_of,
         hcfg=hcfg,
@@ -265,14 +213,6 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         ratios_mean=ratios_mean,
         var_selection=var_selection,
         policy_comparison=policy_comparison,
-    )
-
-
-def _table_exists(con: duckdb.DuckDBPyConnection, name: str) -> bool:
-    return bool(
-        con.execute(
-            "SELECT 1 FROM information_schema.tables WHERE table_name = ?", [name]
-        ).fetchall()
     )
 
 
@@ -490,7 +430,7 @@ def _forecast_table(d: ReportData) -> pd.DataFrame:
 
 def _risk_table(d: ReportData) -> pd.DataFrame:
     r = d.risk_21d.copy()
-    r["label"] = r["label"].map(_risk_label)
+    r["label"] = r["label"].map(risk_label)
     return r.rename(columns={"label": "model", "net_of_hedges": "net of hedges"})
 
 
@@ -974,6 +914,12 @@ def _limitations(d: ReportData, cov95: float, opt: pd.Series, fh: pd.Series) -> 
         "**Carry is an expected cost under a random-walk spot.** Realized hedging cost in the "
         "backtest includes the spot move and can have either sign; the carry signal itself "
         "is not a forecast of returns (hedging primer, section 3).",
+        "**Economic exposure, not accounting exposure.** The hedge is sized on the "
+        "consolidated net position per currency. Transaction exposure (an entity's balances "
+        "in a foreign currency, remeasured through earnings) and translation exposure (a "
+        "subsidiary's position in its own currency, which moves equity on consolidation) "
+        "are netted, so the programme protects the USD value of the group, not reported "
+        "earnings (methodology 4.5, backlog B21).",
         "**Forwards only.** No options, no cross-currency basis, no NDF basis for BRL and "
         "INR; one-way spreads are stylized round numbers from `config/hedge.yaml` (hedging "
         "primer, section 5; backlog B3, B4, B18).",

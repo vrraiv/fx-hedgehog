@@ -14,7 +14,14 @@ cost rate for a long exposure (``(S - F)/S * 365/days``), ``tau`` the horizon in
 Student-t used by the risk engine, ``ES = k * sqrt(w' Sigma_h w)`` with ``w = (1-h) E``,
 which is a norm of an affine function of ``h``: the constraint set is convex and the
 objective is convex (linear plus absolute values), so any local optimum is global.
-``scipy.optimize.minimize`` (SLSQP) is used; the problem has ten variables.
+
+The problem is handed to the solver in a smooth, exact form. ``h >= 0`` makes the spread
+term linear. The turnover term is split in the standard way, ``h = h_prev + u - v`` with
+``u, v >= 0``, so ``|h - h_prev|`` becomes ``u + v`` at the optimum and the objective is
+linear in ``(u, v)``. The ES constraint is written as ``1 - (ES / budget)^2 >= 0``, a
+quadratic that is differentiable everywhere, including at the full hedge where the
+square root is not. ``scipy.optimize.minimize`` (SLSQP) gets exact gradients for both;
+there are twenty variables and one constraint.
 """
 
 from __future__ import annotations
@@ -103,9 +110,58 @@ class HedgeSolution:
     status: str
 
 
-def _smooth_abs(x: np.ndarray, eps: float = 1e-9) -> np.ndarray:
-    out: np.ndarray = np.sqrt(x * x + eps)
-    return out
+def _solve(
+    prob: HedgeProblem, prev: np.ndarray, lam: float, start: np.ndarray | None
+) -> tuple[np.ndarray, str]:
+    """Optimal ratios for a positive budget, before the minimum-ticket rule."""
+    k = len(prob.ccys)
+    e = prob.exposure_usd
+    abs_e = np.abs(e)
+    base = np.clip(prev, 0.0, 1.0)  # h = base + u - v
+    # cost per unit of hedge ratio: carry over the tenor plus spread on the notional
+    unit_cost = e * prob.cost_rate * prob.tenor_days / 365 + prob.spread_bp / 1e4 * abs_e
+    turn = lam * abs_e
+    grad_obj = np.concatenate([unit_cost + turn, -unit_cost + turn])
+    # the objective is linear, so its scale is free: make the largest gradient entry one
+    grad_obj = grad_obj / max(float(np.abs(grad_obj).max()), 1e-12)
+    cov = prob.cov_horizon * (prob.k_es / prob.es_budget_usd) ** 2  # so ES/budget = sqrt(w'cov w)
+
+    def ratios(x: np.ndarray) -> np.ndarray:
+        out: np.ndarray = base + x[:k] - x[k:]
+        return out
+
+    def slack(x: np.ndarray) -> float:
+        w = e * (1 - ratios(x))
+        return float(1.0 - w @ cov @ w)
+
+    def slack_grad(x: np.ndarray) -> np.ndarray:
+        g = 2.0 * e * (cov @ (e * (1 - ratios(x))))  # d slack / d h
+        return np.concatenate([g, -g])
+
+    h0 = np.full(k, 0.5) if start is None else base
+    x0 = np.concatenate([np.maximum(h0 - base, 0.0), np.maximum(base - h0, 0.0)])
+    res = optimize.minimize(
+        lambda x: float(grad_obj @ x),
+        x0,
+        jac=lambda x: grad_obj,
+        method="SLSQP",
+        bounds=[(0.0, float(b)) for b in np.concatenate([1 - base, base])],
+        constraints=[{"type": "ineq", "fun": slack, "jac": slack_grad}],
+        options={"maxiter": 500, "ftol": 1e-12},
+    )
+    h = np.clip(ratios(res.x), 0.0, 1.0)
+    # tiny infeasibility from the solver tolerance: scale the residual down proportionally
+    if prob.residual_es(h) > prob.es_budget_usd * (1 + 1e-6):
+        u = 1 - h
+        lo, hi = 0.0, 1.0
+        for _ in range(60):
+            mid = 0.5 * (lo + hi)
+            if prob.residual_es(1 - u * mid) <= prob.es_budget_usd:
+                lo = mid
+            else:
+                hi = mid
+        h = 1 - u * lo
+    return h, str(res.message)
 
 
 def optimize_hedge(
@@ -122,41 +178,12 @@ def optimize_hedge(
     """
     k = len(prob.ccys)
     e = prob.exposure_usd
-    tau = prob.tenor_days / 365
-    h0 = np.full(k, 0.5) if h_prev is None else np.clip(h_prev, 0, 1)
-    prev = np.zeros(k) if h_prev is None else h_prev
+    prev = np.zeros(k) if h_prev is None else np.asarray(h_prev, dtype=float)
     lam = turnover_penalty_bp / 1e4
-
-    def objective(h: np.ndarray) -> float:
-        carry = np.sum(h * e * prob.cost_rate * tau)
-        spread = np.sum(prob.spread_bp / 1e4 * h * np.abs(e))
-        turnover = lam * np.sum(_smooth_abs(h - prev) * np.abs(e))
-        return float(carry + spread + turnover)
-
-    def es_slack(h: np.ndarray) -> float:
-        return prob.es_budget_usd - prob.residual_es(h)
-
-    scale = max(float(np.abs(e).sum()), 1.0)  # keep the objective O(1) for the solver
-    res = optimize.minimize(
-        lambda h: objective(h) / scale,
-        h0,
-        method="SLSQP",
-        bounds=[(0.0, 1.0)] * k,
-        constraints=[{"type": "ineq", "fun": lambda h: es_slack(h) / scale}],
-        options={"maxiter": 500, "ftol": 1e-12},
-    )
-    h = np.clip(res.x, 0.0, 1.0)
-    # tiny infeasibility from the solver tolerance: scale the residual down proportionally
-    if prob.residual_es(h) > prob.es_budget_usd * (1 + 1e-6):
-        u = 1 - h
-        lo, hi = 0.0, 1.0
-        for _ in range(60):
-            mid = 0.5 * (lo + hi)
-            if prob.residual_es(1 - u * mid) <= prob.es_budget_usd:
-                lo = mid
-            else:
-                hi = mid
-        h = 1 - u * lo
+    if prob.es_budget_usd <= 0:
+        h, status = np.ones(k), "zero budget: full hedge"
+    else:
+        h, status = _solve(prob, prev, lam, start=None if h_prev is None else prev)
 
     if min_ticket_usd > 0:
         small = (np.abs(h * e) < min_ticket_usd) & (h > 0)
@@ -177,7 +204,7 @@ def optimize_hedge(
         turnover_cost_usd=float(lam * np.sum(np.abs(h - prev) * np.abs(e))),
         budget_usd=prob.es_budget_usd,
         binding=bool(res_es >= prob.es_budget_usd * (1 - 1e-3)),
-        status=str(res.message),
+        status=status,
     )
 
 

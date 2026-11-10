@@ -29,8 +29,15 @@ the ES budget.
   ``notional * (S_0 - F)`` accrued evenly over the month; the two sum to the forward's
   payoff ``notional * (S_T - F)`` (tested). Spread is charged on the first day on the
   full notional dealt, from the per-currency table in ``config/hedge.yaml``.
-* **Policies:** unhedged; legacy 50% (every currency, every month); full hedge; optimizer
-  (ADR-0012) with the previous month's ratios as the starting point.
+* **Policies:** unhedged; full hedge; optimizer (ADR-0012) with the previous month's
+  ratios as the starting point; and legacy 50%, the rule a treasury might run by hand
+  with no forecast: on the first of each month sell half of last month's average net
+  exposure in every currency. The first three are ratios of the forecast. The legacy
+  rule is defined once, in the ``hedges_legacy`` view (``sql/075_hedges.sql``), which
+  also fills the exposure waterfall before 2015, and the backtest reads its notionals
+  from that view. An earlier version of the backtest hedged half of the *forecast*
+  under the same name, so the two "legacy" programmes were different rules and the
+  benchmark quietly borrowed the model it was meant to be compared with.
 * **Metrics:** annualized daily P&L volatility, monthly P&L volatility, total P&L,
   carry and spread per year, maximum drawdown of cumulative P&L, worst month, share of
   months in which the budget bound. Reported overall, by year, and for March/April 2020

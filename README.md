@@ -37,9 +37,9 @@ Hedging decides how much of that loss is kept and what it costs to avoid.
 | policy | P&L vol (USD m / yr) | total FX P&L (USD m) | hedging cost per year (+ = cost) | max drawdown | months losing > USD 4m |
 |---|---|---|---|---|---|
 | unhedged | 10.0 | -23.8 | 0.0 | -36.3 | 12 |
-| legacy 50% | 5.2 | -22.3 | 1.2 | -26.1 | 1 |
+| legacy 50% | 5.3 | -22.9 | 1.3 | -26.2 | 0 |
 | full hedge | 2.3 | -20.8 | 2.5 | -22.5 | 0 |
-| optimizer, USD 4m ES budget | 4.6 | -6.6 | -0.9 | -18.5 | 1 |
+| optimizer, USD 4m ES budget | 4.6 | -6.6 | -0.9 | -18.4 | 1 |
 
 A full hedge removes three-quarters of the FX P&L volatility at a cost of USD 2.5m a year
 in carry and spread. The optimizer keeps about half of it, earns USD 0.9m a year instead,
@@ -120,7 +120,7 @@ calibration plot shows this rather than hiding it.
 ```bash
 uv sync --all-groups            # Python 3.12 environment from uv.lock
 uv run fxrisk all               # fetch (no-op from cache) -> quality -> flows -> exposure -> forecast -> backtest -> hedge -> risk -> report
-uv run pytest                   # 123 tests, no network, about twenty seconds
+uv run pytest                   # 137 tests, no network, under half a minute
 ```
 
 Individual stages run in the same order as `all`; the whole pipeline takes about a
@@ -236,6 +236,12 @@ optimizer's monthly positions replace it in the waterfall and the risk engine. D
   backlog B2).
 * **Forwards only; no options, no cross-currency basis, no NDF basis** (hedging primer,
   section 5).
+* **Economic exposure, not accounting exposure.** The model hedges the consolidated net
+  position per currency. It does not separate transaction exposure (an entity's balances
+  in a foreign currency, which hit earnings) from translation exposure (a subsidiary's
+  position in its own currency, which hits equity): USD +286m and -165m on 2026-10-30. A
+  programme that targets reported earnings would be sized differently (methodology 4.5,
+  backlog B21).
 * **Fixing-time mismatch** between sources is tolerated, not modelled.
 * **Weekday calendar**, no holidays, for settlement and payouts (backlog B9).
 * **Coverage tests at one day only.** Ten- and 21-day numbers are reported with a

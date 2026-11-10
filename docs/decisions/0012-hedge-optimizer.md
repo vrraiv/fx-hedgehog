@@ -24,13 +24,24 @@ with an optional turnover penalty and a minimum ticket. The two natural Python t
   of ``h``: convex. The objective is linear plus absolute values: convex. Hence every
   local optimum is global and a general-purpose NLP solver is enough.
 
-**Solver: scipy SLSQP.** Ten variables, one smooth constraint, box bounds; solves in a
-few milliseconds, which matters for the frontier (30 solves) and the backtest (140
-months). cvxpy would express the SOCP more declaratively but pulls in a solver stack
+**Solver: scipy SLSQP, on an exact smooth form of the problem.** Absolute values and a
+square root are not differentiable where the optimum often sits (no trade, full hedge),
+so they are removed without approximation: ``h >= 0`` makes the spread term linear; the
+turnover term is split as ``h = h_prev + u - v`` with ``u, v >= 0``, which turns
+``|h - h_prev|`` into ``u + v``; the ES constraint is written ``1 - (ES / budget)^2 >= 0``,
+a quadratic. The solver gets exact gradients, the linear objective is scaled so its
+largest gradient entry is one, and a zero budget returns the full hedge directly. Twenty
+variables, one constraint, box bounds; solves in a few milliseconds, which matters for
+the frontier (30 solves) and the backtest (140 months). An earlier version smoothed the
+absolute value (``sqrt(x^2 + eps)``) and used finite-difference gradients; run side by
+side over the 142 backtest months the exact form is never worse and finds a cheaper
+optimum in two of them. cvxpy would express the SOCP more declaratively but pulls in a solver stack
 (OSQP/SCS/Clarabel) for a problem that does not need it, and SLSQP's result is checked
 against hand-derived cases in ``tests/test_optimizer.py``: cheaper currencies are hedged
 first, symmetric problems give equal ratios, negative-carry currencies are hedged fully
-even with slack budget, short exposures are bought forward, the frontier is monotone.
+even with slack budget, short exposures are bought forward, the frontier is monotone,
+and on random problems with a turnover penalty no sampled feasible point has a lower
+total cost than the solution.
 A tiny solver infeasibility (1e-6 relative) is removed by scaling the residual exposure
 down along a line search.
 

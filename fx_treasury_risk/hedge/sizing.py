@@ -16,6 +16,8 @@ recommendation use the same rule.
 
 from __future__ import annotations
 
+import duckdb
+import numpy as np
 import pandas as pd
 
 
@@ -58,4 +60,37 @@ def holding_month_by_origin(forecasts: pd.DataFrame) -> pd.DataFrame:
         rows[origin] = holding_month_mean(wide, origin)
     out = pd.DataFrame(rows).T
     out.index = pd.DatetimeIndex(out.index)
+    return out
+
+
+def load_legacy_notionals(con: duckdb.DuckDBPyConnection, ccys: list[str]) -> pd.DataFrame:
+    """Group notionals of the legacy programme, first-of-month trade date x currency.
+
+    Read from the ``hedges_legacy`` view (``sql/075_hedges.sql``), the one place the rule
+    is defined: on the first of each month, sell half of last month's average net
+    exposure. Negative = currency sold forward.
+    """
+    df = con.execute(
+        "SELECT trade_date, ccy, sum(notional_fcy) AS notional_fcy FROM hedges_legacy GROUP BY ALL"
+    ).df()
+    wide = df.pivot(index="trade_date", columns="ccy", values="notional_fcy")
+    wide.index = pd.DatetimeIndex(wide.index)
+    wide.columns.name = None
+    return wide.reindex(columns=ccys).fillna(0.0)
+
+
+def legacy_ratios(legacy_fcy: pd.DataFrame, month: pd.Period, expo_fcy: np.ndarray) -> np.ndarray:
+    """The legacy programme's notionals for ``month`` as ratios of the forecast exposure.
+
+    The programme does not use the forecast; expressing its notional as a ratio only lets
+    it share the P&L and ex-ante risk code with the other policies. The ratio is therefore
+    not 0.5: it is higher when last month's average exceeds this month's forecast. No
+    programme for the month, or a zero forecast, gives a ratio of zero.
+    """
+    row = legacy_fcy[legacy_fcy.index == month.to_timestamp()]
+    if row.empty:
+        return np.zeros(len(expo_fcy))
+    notional = row.iloc[0].to_numpy(dtype=float)
+    safe = np.where(expo_fcy != 0, expo_fcy, 1.0)
+    out: np.ndarray = np.where(expo_fcy != 0, -notional / safe, 0.0)
     return out

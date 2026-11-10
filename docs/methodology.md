@@ -97,8 +97,11 @@ and passes on fixing-time noise.
 `fxrisk quality` rebuilds DuckDB from the cache and runs: cache completeness, CSV schema,
 staleness (per-series publication-lag limits; cache age is WARN only), cross-source
 reconciliation, master-table completeness, calendar gaps, return outliers (|r| > 6 lagged
-EWMA sigma, WARN only, for human review) and a plausibility range on rates. Failures write
-`reports/alerts.md` and return exit code 1.
+EWMA sigma, WARN only, each checked against the sources the master price did not come
+from) and a plausibility range on rates. The loader also fails if any cached series
+loads a different number of rows than its manifest records. The verdicts are stored in
+`quality_checks` for the decision report; failures write `reports/alerts.md` and return
+exit code 1.
 
 ## 3. Synthetic flows
 
@@ -191,6 +194,32 @@ forward 50% of last month's average net exposure in each non-USD currency for on
 `exposure_group_fx` is group net exposure by currency on the FX calendar, in currency
 units and USD, with and without hedges. The risk engine reads only this table.
 
+### 4.5 What kind of exposure this is: economic, not accounting
+
+The number hedged is the **consolidated net position per currency**: every entity's
+balances in a currency are added, whichever entity holds them, and the sum is valued in
+USD. That is the group's economic exposure to the currency, and it is the right target
+for protecting the USD value of the group. It is not what an accountant would call the
+exposure, because accounting splits the same balances in two:
+
+* **Transaction exposure**: monetary items an entity holds in a currency other than its
+  own functional currency (the US parent's EUR receivables and its EUR loan to the
+  euro-area subsidiary, the UK entity's EUR balances). These are remeasured through
+  earnings every period.
+* **Translation exposure**: an entity's position in its *own* functional currency (the
+  euro-area entity's EUR payables to merchants and its EUR loan from the parent). These
+  create no gain or loss in the entity's books; they move equity, not earnings, when the
+  subsidiary is translated into USD on consolidation.
+
+On 2026-10-30 the two parts are USD +286m of transaction exposure and USD -165m of
+translation exposure, which net to USD 121m across the ten currencies. In EUR the parent
+and the UK entity are long USD 73.5m while the euro-area entity owes USD 61.8m in its
+own currency, so the model sees USD 11.7m. A treasury that hedges **reported earnings**
+would hedge nearer the 73.5m; one that hedges **economic value**, as here, hedges the
+net. Neither is wrong, but they are different programmes with different sizes, and the
+model implements only the second. The split by entity is in `exposure_waterfall`;
+separating the two in the optimizer and the backtest is backlog B21.
+
 ## 5. Risk engine
 
 Code: `fx_treasury_risk/risk/`. Choices: ADR-0009.
@@ -277,8 +306,9 @@ Code: `fx_treasury_risk/backtest/policy.py`. Design: ADR-0013. Output:
 Walk-forward, monthly rebalance from 2015-01-02, one-month forwards priced by CIP at the
 origin, hedging the median forecast exposure averaged over the month the forward
 covers; realised P&L from the actual
-exposure path, forward mark-to-market, carry and spread. Policies: unhedged, legacy 50%,
-full hedge, optimizer under a fixed USD 4m ES budget. Metrics: P&L volatility (daily
+exposure path, forward mark-to-market, carry and spread. Policies: unhedged, legacy 50%
+(half of last month's average net exposure, the `hedges_legacy` rule of section 4.3, no
+forecast), full hedge, optimizer under a fixed USD 4m ES budget. Metrics: P&L volatility (daily
 annualized and monthly), total P&L, carry and spread per year, maximum drawdown, worst
 month, months with a loss beyond the budget (a loss frequency) and beyond the policy's own
 ex-ante 99% VaR (the model test), share of months in which the budget bound; overall, by

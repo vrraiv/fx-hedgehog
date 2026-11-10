@@ -108,6 +108,15 @@ def check_raw_counts(con: duckdb.DuckDBPyConnection, cache: SeriesCache) -> None
         raise RuntimeError("cached series did not load completely: " + "; ".join(bad))
 
 
+def table_exists(con: duckdb.DuckDBPyConnection, name: str) -> bool:
+    """True if a table or view called ``name`` exists (stages that may not have run yet)."""
+    return bool(
+        con.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_name = ?", [name]
+        ).fetchall()
+    )
+
+
 def read_table(con: duckdb.DuckDBPyConnection, name: str) -> pd.DataFrame:
     """Fetch a whole table or view as a DataFrame."""
     df: pd.DataFrame = con.table(name).df()

@@ -18,8 +18,9 @@ production versus in this repository; and how should a data refresh reach `main`
   small views in `sql/110_report_views.sql`, re-uses the figures the stages drew, and
   draws two more from exposure views (the waterfall and its monthly-average history).
   Prose is templated around the numbers so a refreshed data set rewrites the argument.
-  The quality section re-reads `reports/quality_report.md` rather than re-running the
-  checks. Consequence: the report can never disagree with the stage reports, and a reader
+  The quality section reads the `quality_checks` table the quality stage stores, like
+  every other section, rather than re-running the checks or parsing the stage's
+  markdown. Consequence: the report can never disagree with the stage reports, and a reader
   can trace every number to a table in `data/fxrisk.duckdb`.
 * **Report order puts the answer first:** question and answer, then data and quality,
   exposure waterfall, forecast calibration, VaR/ES with coverage verdicts, stress,

@@ -112,3 +112,40 @@ def test_frontier_is_monotone() -> None:
     assert (np.diff(f["residual_es_usd"]) >= -1e-6).all()
     assert (np.diff(f["carry_cost_usd"]) <= 1e-6).all()  # more risk allowed -> cheaper
     assert f.iloc[0]["residual_es_usd"] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_zero_budget_is_a_full_hedge() -> None:
+    sol = opt.optimize_hedge(_problem([1e8, -5e7], [0.02, 0.01], budget=0.0, corr=0.3))
+    assert np.allclose(sol.ratios, 1.0) and sol.residual_es_usd == 0.0
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_no_random_feasible_point_beats_the_solution(seed: int) -> None:
+    # Independent check of optimality with a turnover penalty: sample the box, keep the
+    # feasible points, and compare the full objective (carry + spread + turnover).
+    rng = np.random.default_rng(seed)
+    k = 4
+    expo = rng.uniform(2e7, 1e8, k) * rng.choice([1.0, -1.0], k, p=[0.8, 0.2])
+    cost = rng.uniform(-0.03, 0.08, k)
+    prob = _problem(list(expo), list(cost), budget=1.0, corr=0.4, spread=2.0)
+    unhedged = prob.residual_es(np.zeros(k))
+    prob = _problem(list(expo), list(cost), budget=0.4 * unhedged, corr=0.4, spread=2.0)
+    prev = rng.uniform(0, 1, k)
+    bp = 10.0
+    sol = opt.optimize_hedge(prob, prev, bp)
+    assert sol.residual_es_usd <= prob.es_budget_usd * (1 + 1e-6)
+
+    def total(h: np.ndarray) -> float:
+        turnover = bp / 1e4 * np.sum(np.abs(h - prev) * np.abs(expo))
+        return prob.carry_cost(h) + prob.spread_cost(h) + float(turnover)
+
+    best = total(sol.ratios.to_numpy())
+    assert best == pytest.approx(sol.carry_cost_usd + sol.spread_cost_usd + sol.turnover_cost_usd)
+    # candidates: random points, and random points snapped to the kinks (0, 1, prev)
+    pts = rng.uniform(0, 1, (4000, k))
+    snap = rng.integers(0, 4, (4000, k))
+    pts = np.where(snap == 0, 0.0, np.where(snap == 1, 1.0, np.where(snap == 2, prev, pts)))
+    feasible = [h for h in pts if prob.residual_es(h) <= prob.es_budget_usd]
+    assert len(feasible) > 50
+    tol = 1e-6 * float(np.abs(expo).sum())
+    assert min(total(h) for h in feasible) >= best - tol
