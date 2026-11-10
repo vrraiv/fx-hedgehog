@@ -111,7 +111,7 @@ Design rationale: ADR-0008.
 For each (entity, currency) pair with a configured daily volume, and for every calendar
 day, the generator produces positive amounts by flow type:
 
-| Flow type | When | Amount (A = authorized amount, t = take rate, s = same-currency payout share) |
+| Flow type | When | Amount (A = authorized amount, t = take rate, s = same-currency payout share: configured for foreign-currency collections, 1 for the entity's own currency) |
 |---|---|---|
 | `auth` | day of sale | A = volume x growth x weekly x annual x regime x noise |
 | `payable_accrual` | day of sale | A (1-t) s |
