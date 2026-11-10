@@ -698,8 +698,10 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             + _fig(figs, "frontier", "cost-risk frontier")
             + "\n\nThe optimizer is a convex programme (linear cost, ES of a linear book under "
             "an elliptical distribution is a norm of an affine function of the ratios) solved "
-            "with SLSQP, with a 2 bp turnover regulariser so ratios do not flip between 0 and "
-            "1 on tiny carry differences when the budget is slack (ADR-0012).",
+            f"with SLSQP. A {d.hcfg.turnover_penalty_bp:g} bp penalty on the change in notional "
+            "since the previous month is added to the objective as a preference for a stable "
+            "programme; it reduces month-to-month swings in the ratios without measurably "
+            "changing P&L, volatility or cost (ADR-0012).",
         )
     )
 

@@ -35,10 +35,14 @@ bid_ask_bp:
 min_ticket_usd: 250000
 
 # Turnover penalty, basis points of the notional *changed* since last month, added to the
-# optimizer's objective only (not a realized cost). With a hard ES constraint and linear
-# costs the optimum is bang-bang; this regulariser stops ratios flipping between 0 and 1
-# on tiny carry differences when the budget is slack.
-turnover_penalty_bp: 2.0
+# optimizer's objective only. It is a stated preference for a stable programme, not a
+# modelled cost: forwards are re-dealt in full every month, so the spread already prices
+# the trading. With a hard ES constraint and linear costs the optimum is bang-bang, and
+# when the budget binds it moves between MXN and AUD on small changes in volatility.
+# Measured over the 2015-2026 backtest (ADR-0012): 2 bp gives 35 monthly ratio jumps
+# above 0.5, 10 bp gives 24, 20 bp gives 19, with total P&L, volatility and hedging cost
+# unchanged to within USD 0.5m, 0.03m and 0.02m a year. 10 bp is the middle of that range.
+turnover_penalty_bp: 10.0
 
 # Walk-forward policy backtest.
 oos_start: 2015-01-01
