@@ -150,11 +150,11 @@ def _write_outputs(
                 "actual. Coverage is the share of actuals inside the central 50/80/95% "
                 "intervals. Skill is 1 - pinball / pinball of the seasonal naive.",
             ),
-            ("By horizon, averaged over currencies", df_to_markdown(head)),
-            ("At 21 days, by currency", df_to_markdown(per_ccy)),
+            ("By horizon, averaged over currencies", df_to_markdown(head, readable=True)),
+            ("At 21 days, by currency", df_to_markdown(per_ccy, readable=True)),
             (
-                "Latest 21-day-ahead forecast of net exposure (currency units), calendar_ar1",
-                df_to_markdown(lat),
+                "Latest 21-day-ahead forecast of net exposure (currency units), calendar model",
+                df_to_markdown(lat, decimals={"2.5%": 0, "median": 0, "97.5%": 0}, readable=True),
             ),
             (
                 "Figures",

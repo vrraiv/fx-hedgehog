@@ -422,3 +422,17 @@ def test_headline_states_var_exceedances_and_significance(tmp_path: Path) -> Non
     table = decision._summary_table(d)
     assert "months losing > USD 4m" in table.columns
     assert "months loss > ex-ante VaR" in table.columns
+
+
+def test_readable_tables_use_display_names() -> None:
+    from fx_treasury_risk.report.tables import df_to_markdown
+
+    df = pd.DataFrame(
+        {"policy": ["legacy_50", "new_policy"], "kupiec_p": [0.5, 0.25], "custom": [1, 2]}
+    )
+    raw = df_to_markdown(df)
+    assert "legacy_50" in raw and "kupiec_p" in raw
+    text = df_to_markdown(df, decimals={"kupiec_p": 2}, readable=True)
+    assert "| policy | Kupiec p | custom |" in text
+    assert "| legacy 50% | 0.50 | 1 |" in text
+    assert "| new_policy | 0.25 | 2 |" in text  # unknown names are printed as stored

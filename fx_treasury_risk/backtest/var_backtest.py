@@ -344,10 +344,11 @@ def write_backtest_table(paths: config.Paths, out: pd.DataFrame, selection: pd.D
         "selected",
         "oos_fz0",
     ]
-    body = df_to_markdown(out[cols].round(3))
+    body = df_to_markdown(out[cols].round(3), readable=True)
     sel_body = df_to_markdown(
         selection[sel_cols],
         decimals={"sel_fz0": 4, "oos_fz0": 4, "dm_stat_vs_selected": 2, "dm_p_vs_selected": 2},
+        readable=True,
     )
     g = selection.iloc[0]
     sel_note = (
@@ -359,7 +360,7 @@ def write_backtest_table(paths: config.Paths, out: pd.DataFrame, selection: pd.D
         "converge (those keep the previous month's parameters)."
     )
     note = (
-        "One-day horizon, daily, exposure held at the previous close. n_consecutive counts "
+        "One-day horizon, daily, exposure held at the previous close. Back-to-back counts "
         "exceptions on the day after another exception. Z1/Z2 are in losses: "
         "positive means realised tail losses exceeded the forecast ES. Verdict is PASS when "
         "Kupiec, Christoffersen, conditional coverage and Z2 all have p >= 0.05."

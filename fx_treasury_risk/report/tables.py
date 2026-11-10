@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from fx_treasury_risk.report.labels import readable as _readable
+
 
 def fmt(v: object) -> str:
     """Compact scalar formatting for markdown cells."""
@@ -44,12 +46,16 @@ def df_to_markdown(
     df: pd.DataFrame,
     index: bool = False,
     decimals: int | Mapping[str, int] | None = None,
+    readable: bool = False,
 ) -> str:
     """Render a frame as a GitHub-flavoured markdown table.
 
     ``decimals`` fixes the number of decimals for numeric cells: one value for every
     column, or a mapping from column name to decimals (other columns use :func:`fmt`).
     Without it, numbers are printed compactly with trailing zeros stripped.
+
+    ``readable`` replaces stored identifiers and column names with the display names in
+    ``report/labels.py`` (``decimals`` is still keyed by the stored column names).
     """
     frame = df.reset_index() if index else df
     cols = [str(c) for c in frame.columns]
@@ -59,6 +65,9 @@ def df_to_markdown(
         per_col = [decimals] * len(cols)
     else:
         per_col = [decimals.get(c) for c in cols]
+    if readable:
+        frame = _readable(frame)
+        cols = [str(c) for c in frame.columns]
     lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
     for row in frame.itertuples(index=False):
         cells = [

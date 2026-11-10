@@ -11,6 +11,7 @@ import duckdb
 import pandas as pd
 
 from fx_treasury_risk import config, db
+from fx_treasury_risk.report.labels import BASIS_LABELS
 from fx_treasury_risk.report.tables import df_to_markdown, write_markdown
 from fx_treasury_risk.risk.returns import fx_returns
 from fx_treasury_risk.risk.stress import stress_table
@@ -109,8 +110,14 @@ def write_risk_tables(paths: config.Paths, run: RiskRun) -> Path:
     for basis in ("net", "net_of_hedges"):
         tbl = headline_table(run.risk, basis)
         labels = cast(list[tuple[str, int, float]], tbl.columns.to_list())
-        tbl.columns = [f"{m[:-4]} {h}d {c:.0%}" for m, h, c in labels]
-        sections.append((f"VaR / ES, basis = {basis} (USD m)", df_to_markdown(tbl, index=True)))
+        measure = {"es_usd": "ES", "var_usd": "VaR"}
+        tbl.columns = [f"{measure[m]} {h}d {c:.0%}" for m, h, c in labels]
+        sections.append(
+            (
+                f"VaR / ES, {BASIS_LABELS[basis]} exposure (USD m)",
+                df_to_markdown(tbl, index=True, readable=True),
+            )
+        )
     st = run.stress[run.stress["basis"] == "net"][
         [
             "scenario",
@@ -125,7 +132,7 @@ def write_risk_tables(paths: config.Paths, run: RiskRun) -> Path:
     ].copy()
     st["pnl_usd"] = (st["pnl_usd"] / 1e6).round(2)
     st = st.rename(columns={"pnl_usd": "P&L (USD m)"})
-    sections.append(("Stress, basis = net", df_to_markdown(st)))
+    sections.append(("Stress, net exposure", df_to_markdown(st, readable=True)))
     out = paths.reports_dir / "risk_tables.md"
     write_markdown(out, f"Risk tables as of {run.as_of.date()}", sections)
     return out

@@ -24,6 +24,13 @@ from fx_treasury_risk import __version__, config, db
 from fx_treasury_risk.backtest.var_backtest import method_for_ewma
 from fx_treasury_risk.hedge.config import HedgeConfig, load_hedge_config
 from fx_treasury_risk.report import plots
+from fx_treasury_risk.report.labels import (
+    POLICY_LABELS,
+    SCENARIO_LABELS,
+    TOTAL_LABEL,
+    VAR_METHOD_LABELS,
+    risk_label,
+)
 from fx_treasury_risk.report.tables import df_to_markdown, fmt, write_markdown
 
 log = logging.getLogger(__name__)
@@ -31,54 +38,6 @@ log = logging.getLogger(__name__)
 REPORT_NAME = "decision_report.md"
 STRESS_MONTHS = ("2020-03", "2020-04", "2022-09", "2022-10")
 SHOW_HORIZONS = (1, 5, 10, 21, 42, 63)
-POLICY_LABELS = {
-    "unhedged": "unhedged",
-    "legacy_50": "legacy 50%",
-    "full_hedge": "full hedge",
-    "optimizer": "optimizer",
-}
-# Display names for identifiers that the stages store in machine-friendly form. Anything
-# not listed is printed as stored, so a new method or scenario never breaks the report.
-RISK_METHOD_LABELS = {
-    "historical": "historical simulation",
-    "parametric_normal": "normal",
-    "parametric_t": "Student-t",
-    "monte_carlo_t": "Monte Carlo, t copula",
-}
-COV_LABELS = {
-    "none": "",
-    "sample": "sample covariance",
-    "ledoit_wolf": "Ledoit-Wolf",
-    "ewma_0.94": "EWMA 0.94",
-    "ewma_0.97": "EWMA 0.97",
-}
-VAR_METHOD_LABELS = {
-    "historical": "historical simulation",
-    "normal_sample": "normal, sample covariance",
-    "normal_ewma": "normal, EWMA 0.94",
-    "t_ewma": "Student-t, EWMA 0.94",
-    "t_ewma97": "Student-t, EWMA 0.97",
-    "t_garch": "Student-t, GARCH(1,1) volatilities",
-}
-SCENARIO_LABELS = {
-    "chf_depeg_2015": "CHF floor removed, Jan 2015",
-    "brexit_2016": "Brexit vote, Jun 2016",
-    "covid_2020": "Dash for dollars, Mar 2020",
-    "usd_surge_2022": "USD surge, Aug-Sep 2022",
-    "taper_tantrum_2013": "Taper tantrum, May-Aug 2013",
-    "usd_up_10": "USD +10% against all",
-    "em_selloff_15": "EM selloff (BRL, MXN -15%, INR -10%)",
-    "eur_down_10": "EUR -10%",
-    "jpy_up_10": "JPY +10%",
-}
-TOTAL_LABEL = "total (absolute values)"
-
-
-def _risk_label(label: str) -> str:
-    method, _, cov = label.partition(" / ")
-    m = RISK_METHOD_LABELS.get(method, method)
-    c = COV_LABELS.get(cov, cov)
-    return f"{m}, {c}" if c else m
 
 
 @dataclass
@@ -471,7 +430,7 @@ def _forecast_table(d: ReportData) -> pd.DataFrame:
 
 def _risk_table(d: ReportData) -> pd.DataFrame:
     r = d.risk_21d.copy()
-    r["label"] = r["label"].map(_risk_label)
+    r["label"] = r["label"].map(risk_label)
     return r.rename(columns={"label": "model", "net_of_hedges": "net of hedges"})
 
 

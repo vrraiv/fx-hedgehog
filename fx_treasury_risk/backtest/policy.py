@@ -433,12 +433,13 @@ def _store_optimizer_positions(
 
 
 SUMMARY_NOTE = (
-    "months_loss_gt_budget counts months that lost more than the ES budget: a plain loss "
+    "Carry and spread are P&L: positive carry is earned, spread is always paid. *Months "
+    "losing > budget* counts months that lost more than the ES budget: a plain loss "
     "frequency, comparable across policies, not a model test (a 99% ES is exceeded in well "
     "under 1% of months even by a correct model, and only the optimizer is held to the "
-    "budget). months_loss_gt_var is the model test: months whose loss exceeded the policy's "
-    "own ex-ante 99% VaR, about 1% of months if the model is right. A full hedge of the "
-    "forecast has zero ex-ante VaR, so every losing month counts: its risk is all "
+    "budget). *Months loss > ex-ante VaR* is the model test: months whose loss exceeded the "
+    "policy's own ex-ante 99% VaR, about 1% of months if the model is right. A full hedge "
+    "of the forecast has zero ex-ante VaR, so every losing month counts: its risk is all "
     "forecast error, which the model does not see."
 )
 
@@ -456,9 +457,9 @@ def _comparison_md(comparison: pd.DataFrame) -> str:
         c[col] = c[col] / 1e6
     note = (
         "Monthly P&L of the optimizer minus each other policy. t and p test that the mean "
-        "difference is zero (Newey-West long-run variance). carry_spread_diff is known when "
-        "the forwards are dealt; spot_diff is the result of the currency risk left open and "
-        "is what decides whether the carry was worth taking."
+        "difference is zero (Newey-West long-run variance). The carry and spread difference "
+        "is known when the forwards are dealt; the spot difference is the result of the "
+        "currency risk left open and is what decides whether the carry was worth taking."
     )
     body = df_to_markdown(
         c.drop(columns=["policy"]),
@@ -471,6 +472,7 @@ def _comparison_md(comparison: pd.DataFrame) -> str:
             "spot_diff_usd": 1,
             "spot_p_value": 2,
         },
+        readable=True,
     )
     return body + "\n\n" + note
 
@@ -526,14 +528,14 @@ def _write_outputs(
                 "on the notional dealt. P&L is the FX P&L of the group net exposure plus hedge "
                 "mark-to-market, carry and spread; operating P&L is excluded.",
             ),
-            ("Summary by policy (USD m)", df_to_markdown(s) + "\n\n" + SUMMARY_NOTE),
+            ("Summary by policy (USD m)", df_to_markdown(s, readable=True) + "\n\n" + SUMMARY_NOTE),
             ("Is the optimizer's lead significant? (USD m)", _comparison_md(comparison)),
             (
                 "Optimizer hedge ratios: mean over the backtest and at the last rebalance",
-                df_to_markdown(ratio_table, index=True),
+                df_to_markdown(ratio_table.rename_axis("ratio"), index=True),
             ),
-            ("Stress months (USD m)", df_to_markdown(ep)),
-            ("By year (USD m)", df_to_markdown(by)),
+            ("Stress months (USD m)", df_to_markdown(ep, readable=True)),
+            ("By year (USD m)", df_to_markdown(by, readable=True)),
             (
                 "Figures",
                 "![cumulative](figures/policy_cumulative_pnl.png)\n\n"

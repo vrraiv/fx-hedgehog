@@ -267,10 +267,13 @@ def _write_report(
                 f"covariance at {hcfg.horizon_days} days / {hcfg.confidence:.0%}. Forwards: "
                 f"{hcfg.forward_tenor_days}-day tenor priced by CIP.",
             ),
-            ("Headline", df_to_markdown(head)),
-            ("Recommended hedge ratios by currency", df_to_markdown(rec, index=True)),
-            ("Reference policies at today's exposures", df_to_markdown(ref)),
-            ("Frontier (every other point)", df_to_markdown(fr.iloc[::2])),
+            ("Headline", df_to_markdown(head, readable=True)),
+            (
+                "Recommended hedge ratios by currency",
+                df_to_markdown(rec.rename_axis("ccy"), index=True, readable=True),
+            ),
+            ("Reference policies at today's exposures", df_to_markdown(ref, readable=True)),
+            ("Frontier (every other point)", df_to_markdown(fr.iloc[::2], readable=True)),
             ("Figure", "![frontier](figures/hedge_frontier.png)"),
         ],
     )
