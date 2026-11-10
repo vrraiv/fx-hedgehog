@@ -436,3 +436,20 @@ def test_readable_tables_use_display_names() -> None:
     assert "| policy | Kupiec p | custom |" in text
     assert "| legacy 50% | 0.50 | 1 |" in text
     assert "| new_policy | 0.25 | 2 |" in text  # unknown names are printed as stored
+
+
+def test_readme_block_is_rendered_from_the_report_data(tmp_path: Path) -> None:
+    from fx_treasury_risk.report import readme
+
+    d = _data(tmp_path)
+    block = readme.render_results(d)
+    assert block.startswith(readme.START) and block.endswith(readme.END)
+    assert decision.headline_answer(d) in block  # the same paragraph as the report
+    assert "| optimizer |" in block and "skill against the seasonal naive" in block
+    text = "intro\n" + readme.START + "\nstale numbers\n" + readme.END + "\noutro\n"
+    new = readme.replace_block(text, block)
+    assert new.startswith("intro\n") and new.endswith("\noutro\n")
+    assert "stale numbers" not in new
+    assert readme.replace_block(new, block) == new  # idempotent
+    with pytest.raises(ValueError, match="no results markers"):
+        readme.replace_block("no markers here", block)

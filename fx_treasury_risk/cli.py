@@ -3,6 +3,7 @@
 Stages run in this order and each one reads only what earlier stages wrote::
 
     fetch -> quality -> flows -> exposure -> forecast -> backtest -> hedge -> risk -> report
+    -> readme
 
 ``backtest`` runs before ``hedge`` because it writes the optimizer's monthly positions
 (and rebuilds the group exposure table with them) and the hedge stage starts today's
@@ -274,6 +275,23 @@ def report() -> None:
     console.print(f"decision report: {out}")
 
 
+@app.command()
+def readme(
+    check: Annotated[
+        bool, typer.Option("--check", help="Only report whether the block is stale; exit 1 if so.")
+    ] = False,
+) -> None:
+    """Rewrite the README's results block from the decision report's data."""
+    from fx_treasury_risk.report.readme import update_readme
+
+    paths = config.Paths.from_env()
+    changed = update_readme(paths, check=check)
+    if check and changed:
+        console.print("[red]README results block is out of date - run `fxrisk readme`[/red]")
+        raise typer.Exit(1)
+    console.print("README results block " + ("updated" if changed else "already current"))
+
+
 @app.command(name="all")
 def run_all() -> None:
     """Run every stage in order."""
@@ -286,6 +304,10 @@ def run_all() -> None:
     hedge()
     risk()
     report()
+    # the README links into the repository's reports/, so only a run that writes there
+    # may rewrite it (a run with FXRISK_REPORTS_DIR elsewhere leaves the README alone)
+    if config.Paths.from_env().reports_dir.resolve() == (config.REPO_ROOT / "reports").resolve():
+        readme(check=False)
 
 
 if __name__ == "__main__":  # pragma: no cover
