@@ -49,17 +49,17 @@
 
 ## Stress, basis = net
 
-| scenario | kind | window | propagated | largest_move | P&L (USD m) | note |
-|---|---|---|---|---|---|---|
-| chf_depeg_2015 | historical | 2015-01-14 to 2015-01-16 | no | CHF +18.1% | 1.05 | SNB removes the EUR/CHF floor, 15 Jan 2015 |
-| brexit_2016 | historical | 2016-06-23 to 2016-06-27 | no | GBP -11.3% | -2.92 | UK referendum result, 24-27 Jun 2016 |
-| covid_2020 | historical | 2020-03-06 to 2020-03-20 | no | MXN -17.5% | -8.66 | dash for dollars, March 2020 |
-| usd_surge_2022 | historical | 2022-08-01 to 2022-09-27 | no | GBP -13.3% | -6.42 | Fed hiking cycle, DXY peak 27 Sep 2022 |
-| taper_tantrum_2013 | historical | 2013-05-22 to 2013-08-30 | no | INR -16.7% | -6.5 | EM selloff after Bernanke's taper remarks (BRL, INR) |
-| usd_up_10 | hypothetical |  | no | EUR -10.0% | -11.51 | every exposure currency weakens 10% against USD, no propagation needed |
-| em_selloff_15 | hypothetical |  | yes | MXN -15.0% | -9.06 | EM selloff; majors follow conditionally |
-| em_selloff_15 | hypothetical |  | no | MXN -15.0% | -6.82 | EM selloff; majors follow conditionally |
-| eur_down_10 | hypothetical |  | yes | EUR -10.0% | -7.05 | euro-specific shock; others follow conditionally |
-| eur_down_10 | hypothetical |  | no | EUR -10.0% | -1.12 | euro-specific shock; others follow conditionally |
-| jpy_up_10 | hypothetical |  | yes | BRL +11.0% | 5.9 | yen safe-haven rally; others follow conditionally |
-| jpy_up_10 | hypothetical |  | no | JPY +10.0% | 1.18 | yen safe-haven rally; others follow conditionally |
+| scenario | kind | window | propagated | largest_move | implied_moves | P&L (USD m) | note |
+|---|---|---|---|---|---|---|---|
+| chf_depeg_2015 | historical | 2015-01-14 to 2015-01-16 | no | CHF +18.1% |  | 1.05 | SNB removes the EUR/CHF floor, 15 Jan 2015 |
+| brexit_2016 | historical | 2016-06-23 to 2016-06-27 | no | GBP -11.3% |  | -2.92 | UK referendum result, 24-27 Jun 2016 |
+| covid_2020 | historical | 2020-03-06 to 2020-03-20 | no | MXN -17.5% |  | -8.66 | dash for dollars, March 2020 |
+| usd_surge_2022 | historical | 2022-08-01 to 2022-09-27 | no | GBP -13.3% |  | -6.42 | Fed hiking cycle, DXY peak 27 Sep 2022 |
+| taper_tantrum_2013 | historical | 2013-05-22 to 2013-08-30 | no | INR -16.7% |  | -6.5 | EM selloff after Bernanke's taper remarks (BRL, INR) |
+| usd_up_10 | hypothetical |  | no | EUR -10.0% |  | -11.51 | every exposure currency weakens 10% against USD, no propagation needed |
+| em_selloff_15 | hypothetical |  | yes | MXN -15.0% | AUD -10.8%, EUR -7.3%, GBP -7.2% | -11.02 | EM selloff; majors follow conditionally |
+| em_selloff_15 | hypothetical |  | no | MXN -15.0% |  | -6.82 | EM selloff; majors follow conditionally |
+| eur_down_10 | hypothetical |  | yes | EUR -10.0% | AUD -9.4%, CHF -8.9%, GBP -8.7% | -7.15 | euro-specific shock; others follow conditionally |
+| eur_down_10 | hypothetical |  | no | EUR -10.0% |  | -1.12 | euro-specific shock; others follow conditionally |
+| jpy_up_10 | hypothetical |  | yes | JPY +10.0% | CHF +4.6%, AUD +3.9%, GBP +3.6% | 3.68 | yen +10% against USD; others follow conditionally, which mostly means broad USD weakness rather than an EM risk-off |
+| jpy_up_10 | hypothetical |  | no | JPY +10.0% |  | 1.18 | yen +10% against USD; others follow conditionally, which mostly means broad USD weakness rather than an EM risk-off |

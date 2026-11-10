@@ -6,12 +6,24 @@ Monthly rebalance from 2015-01-01 to 2026-10-30; ES budget USD 4.0m at 21 days /
 
 ## Summary by policy (USD m)
 
-| policy | daily_vol_annualized_usd_m | monthly_vol_usd_m | total_pnl_usd_m | carry_per_year_usd_m | spread_per_year_usd_m | max_drawdown_usd_m | worst_month_usd_m | months_loss_gt_budget | n_months | mean_ex_ante_es_usd_m | share_months_binding |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| full_hedge | 2.31 | 0.57 | -20.8 | -1.97 | -0.51 | -22.53 | -2.45 | 0 | 142 | 0 | 0 |
-| legacy_50 | 5.18 | 1.59 | -22.28 | -0.98 | -0.26 | -26.06 | -4.26 | 1 | 142 | 4.55 | 0 |
-| optimizer | 4.59 | 1.32 | -6.63 | 1 | -0.12 | -18.45 | -5.03 | 1 | 142 | 3.73 | 0.57 |
-| unhedged | 9.96 | 3.06 | -23.76 | 0 | 0 | -36.26 | -7.16 | 12 | 142 | 9.1 | 0 |
+| policy | daily_vol_annualized_usd_m | monthly_vol_usd_m | total_pnl_usd_m | carry_per_year_usd_m | spread_per_year_usd_m | max_drawdown_usd_m | worst_month_usd_m | months_loss_gt_budget | months_loss_gt_var | n_months | mean_ex_ante_es_usd_m | share_months_binding |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| full_hedge | 2.31 | 0.57 | -20.8 | -1.97 | -0.51 | -22.53 | -2.45 | 0 | 80 | 142 | 0 | 0 |
+| legacy_50 | 5.18 | 1.59 | -22.28 | -0.98 | -0.26 | -26.06 | -4.26 | 1 | 4 | 142 | 4.55 | 0 |
+| optimizer | 4.59 | 1.32 | -6.63 | 1 | -0.12 | -18.45 | -5.03 | 1 | 5 | 142 | 3.73 | 0.57 |
+| unhedged | 9.96 | 3.06 | -23.76 | 0 | 0 | -36.26 | -7.16 | 12 | 3 | 142 | 9.1 | 0 |
+
+months_loss_gt_budget counts months that lost more than the ES budget: a plain loss frequency, comparable across policies, not a model test (a 99% ES is exceeded in well under 1% of months even by a correct model, and only the optimizer is held to the budget). months_loss_gt_var is the model test: months whose loss exceeded the policy's own ex-ante 99% VaR, about 1% of months if the model is right. A full hedge of the forecast has zero ex-ante VaR, so every losing month counts: its risk is all forecast error, which the model does not see.
+
+## Is the optimizer's lead significant? (USD m)
+
+| versus | n_months | total_diff_usd | mean_monthly_diff_usd | t_stat | p_value | carry_spread_diff_usd | spot_diff_usd | spot_p_value |
+|---|---|---|---|---|---|---|---|---|
+| full_hedge | 142 | 14.2 | 0.100 | 0.94 | 0.34 | 39.8 | -25.6 | 0.08 |
+| legacy_50 | 142 | 15.6 | 0.110 | 1.44 | 0.15 | 25.1 | -9.5 | 0.38 |
+| unhedged | 142 | 17.1 | 0.121 | 0.77 | 0.44 | 10.4 | 6.7 | 0.77 |
+
+Monthly P&L of the optimizer minus each other policy. t and p test that the mean difference is zero (Newey-West long-run variance). carry_spread_diff is known when the forwards are dealt; spot_diff is the result of the currency risk left open and is what decides whether the carry was worth taking.
 
 ## Optimizer hedge ratios: mean over the backtest and at the last rebalance
 
@@ -22,24 +34,24 @@ Monthly rebalance from 2015-01-01 to 2026-10-30; ES budget USD 4.0m at 21 days /
 
 ## Stress months (USD m)
 
-| policy | month | pnl_unhedged | pnl_hedge_mtm | pnl_carry | pnl_spread | pnl_total | ex_ante_es_usd |
-|---|---|---|---|---|---|---|---|
-| full_hedge | 2020-03 | -6.71 | 7.2 | -0.07 | -0.04 | 0.38 | 0 |
-| full_hedge | 2020-04 | 0.22 | 0.09 | -0.14 | -0.03 | 0.14 | 0 |
-| full_hedge | 2022-09 | -5.13 | 5.96 | -0.19 | -0.04 | 0.6 | 0 |
-| full_hedge | 2022-10 | 0.51 | -1.12 | -0.17 | -0.04 | -0.83 | 0 |
-| legacy_50 | 2020-03 | -6.71 | 3.6 | -0.03 | -0.02 | -3.17 | 2.44 |
-| legacy_50 | 2020-04 | 0.22 | 0.04 | -0.07 | -0.02 | 0.18 | 9.19 |
-| legacy_50 | 2022-09 | -5.13 | 2.98 | -0.09 | -0.02 | -2.26 | 6.19 |
-| legacy_50 | 2022-10 | 0.51 | -0.56 | -0.09 | -0.02 | -0.16 | 7.78 |
-| optimizer | 2020-03 | -6.71 | 1.58 | 0.11 | -0.01 | -5.03 | 3.72 |
-| optimizer | 2020-04 | 0.22 | -0.28 | -0.04 | -0.01 | -0.12 | 4 |
-| optimizer | 2022-09 | -5.13 | 4.71 | 0.11 | -0.01 | -0.33 | 4 |
-| optimizer | 2022-10 | 0.51 | -0.95 | 0.09 | -0.01 | -0.37 | 4 |
-| unhedged | 2020-03 | -6.71 | 0 | 0 | 0 | -6.71 | 4.87 |
-| unhedged | 2020-04 | 0.22 | 0 | 0 | 0 | 0.22 | 18.38 |
-| unhedged | 2022-09 | -5.13 | 0 | 0 | 0 | -5.13 | 12.38 |
-| unhedged | 2022-10 | 0.51 | 0 | 0 | 0 | 0.51 | 15.56 |
+| policy | month | pnl_unhedged | pnl_hedge_mtm | pnl_carry | pnl_spread | pnl_total | ex_ante_var_usd | ex_ante_es_usd |
+|---|---|---|---|---|---|---|---|---|
+| full_hedge | 2020-03 | -6.71 | 7.2 | -0.07 | -0.04 | 0.38 | 0 | 0 |
+| full_hedge | 2020-04 | 0.22 | 0.09 | -0.14 | -0.03 | 0.14 | 0 | 0 |
+| full_hedge | 2022-09 | -5.13 | 5.96 | -0.19 | -0.04 | 0.6 | 0 | 0 |
+| full_hedge | 2022-10 | 0.51 | -1.12 | -0.17 | -0.04 | -0.83 | 0 | 0 |
+| legacy_50 | 2020-03 | -6.71 | 3.6 | -0.03 | -0.02 | -3.17 | 1.86 | 2.44 |
+| legacy_50 | 2020-04 | 0.22 | 0.04 | -0.07 | -0.02 | 0.18 | 6.87 | 9.19 |
+| legacy_50 | 2022-09 | -5.13 | 2.98 | -0.09 | -0.02 | -2.26 | 4.71 | 6.19 |
+| legacy_50 | 2022-10 | 0.51 | -0.56 | -0.09 | -0.02 | -0.16 | 5.89 | 7.78 |
+| optimizer | 2020-03 | -6.71 | 1.58 | 0.11 | -0.01 | -5.03 | 2.84 | 3.72 |
+| optimizer | 2020-04 | 0.22 | -0.28 | -0.04 | -0.01 | -0.12 | 2.99 | 4 |
+| optimizer | 2022-09 | -5.13 | 4.71 | 0.11 | -0.01 | -0.33 | 3.04 | 4 |
+| optimizer | 2022-10 | 0.51 | -0.95 | 0.09 | -0.01 | -0.37 | 3.03 | 4 |
+| unhedged | 2020-03 | -6.71 | 0 | 0 | 0 | -6.71 | 3.73 | 4.87 |
+| unhedged | 2020-04 | 0.22 | 0 | 0 | 0 | 0.22 | 13.75 | 18.38 |
+| unhedged | 2022-09 | -5.13 | 0 | 0 | 0 | -5.13 | 9.42 | 12.38 |
+| unhedged | 2022-10 | 0.51 | 0 | 0 | 0 | 0.51 | 11.79 | 15.56 |
 
 ## By year (USD m)
 
