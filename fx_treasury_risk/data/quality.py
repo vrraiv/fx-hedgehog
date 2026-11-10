@@ -387,35 +387,67 @@ def check_return_outliers(con: duckdb.DuckDBPyConnection) -> CheckResult:
     """Flag daily log returns beyond OUTLIER_SIGMA lagged EWMA standard deviations.
 
     This is a WARN, never a FAIL: genuine market events (CHF de-peg 15 Jan 2015, GBP on
-    24 Jun 2016) look exactly like data errors to a statistical filter. The list is for a
-    human to confirm.
+    24 Jun 2016) look exactly like data errors to a statistical filter. To help the human
+    who reviews the list, each move is checked against the sources the master price did
+    not come from: ``confirmed_by`` counts those whose own move over the same interval
+    has the same sign and at least half the size (a data error in one feed is not
+    repeated by the others). The ECB fixes at 14:15 CET, so a move late in the New York
+    day reaches it a day later and can leave it unconfirming. ``span_days`` is the
+    calendar length of the return: more than a weekend means a source holiday, and the
+    "daily" move is really two days.
     """
     df = con.execute(
-        "SELECT obs_date, ccy, usd_per_fcy, is_filled FROM fx_usd_master_filled "
+        "SELECT obs_date, ccy, usd_per_fcy, is_filled, source_used FROM fx_usd_master_filled "
         "ORDER BY ccy, obs_date"
     ).df()
+    by_source = con.execute("SELECT obs_date, ccy, source, usd_per_fcy FROM fx_usd_per_fcy").df()
     rows = []
     for ccy, g in df.groupby("ccy"):
-        px = g.set_index("obs_date")["usd_per_fcy"]
+        g = g.set_index("obs_date")
+        px = g["usd_per_fcy"]
         r = np.log(px).diff()
-        r[g.set_index("obs_date")["is_filled"].to_numpy()] = np.nan
+        r[g["is_filled"].to_numpy()] = np.nan
         z = r / ewma_vol(r)
-        hits = z[z.abs() > OUTLIER_SIGMA].dropna()
-        for d, zval in hits.items():
+        src = (
+            by_source[by_source["ccy"] == ccy]
+            .pivot(index="obs_date", columns="source", values="usd_per_fcy")
+            .reindex(px.index)
+        )
+        dates = pd.DatetimeIndex(px.index)
+        used = g["source_used"].astype(str).to_numpy()
+        ret = r.to_numpy(dtype=float)
+        for i in (int(k) for k in np.flatnonzero((z.abs() > OUTLIER_SIGMA).to_numpy())):
+            others = [str(s) for s in src.columns if str(s) != used[i]]
+            moves = []
+            for s in others:
+                v0, v1 = float(src[s].iloc[i - 1]), float(src[s].iloc[i])
+                if np.isfinite(v0) and np.isfinite(v1):
+                    moves.append(float(np.log(v1 / v0)))
+            agree = sum(
+                np.sign(m) == np.sign(ret[i]) and abs(m) >= 0.5 * abs(ret[i]) for m in moves
+            )
             rows.append(
                 {
-                    "date": pd.Timestamp(d).date().isoformat(),
+                    "date": dates[i].date().isoformat(),
                     "ccy": ccy,
-                    "log_return_pct": round(100 * float(r[d]), 2),
-                    "z": round(float(zval), 1),
+                    "log_return_pct": round(100 * ret[i], 2),
+                    "z": round(float(z.iloc[i]), 1),
+                    "source": used[i],
+                    "confirmed_by": f"{agree} of {len(moves)}",
+                    "span_days": (dates[i] - dates[i - 1]).days,
                 }
             )
     if rows:
-        ev = pd.DataFrame(rows).sort_values("z", key=np.abs, ascending=False).head(25)
+        all_rows = pd.DataFrame(rows)
+        n_conf = all_rows["confirmed_by"].str.split(" of ")
+        n_all = int(n_conf.map(lambda x: x[0] == x[1] and x[1] != "0").sum())
+        n_none = int(n_conf.map(lambda x: x[0] == "0").sum())
+        ev = all_rows.sort_values("z", key=np.abs, ascending=False).head(25)
         return CheckResult(
             "return_outliers",
             "WARN",
-            f"{len(rows)} daily moves beyond {OUTLIER_SIGMA:g} EWMA sigma "
+            f"{len(rows)} daily moves beyond {OUTLIER_SIGMA:g} EWMA sigma: {n_all} confirmed "
+            f"by every other source, {len(rows) - n_all - n_none} by some, {n_none} by none "
             "(review, not necessarily errors)",
             ev,
         )

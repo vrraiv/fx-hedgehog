@@ -3,7 +3,7 @@
 An FX treasury risk system for a stylized multi-entity, multi-currency payments business.
 Synthetic merchant flows in ten currencies create exposure across four legal entities;
 the system measures that exposure (VaR, Expected Shortfall, stress), forecasts it with
-calibrated uncertainty, and chooses forward-hedge ratios that minimise carry cost for a
+prediction intervals, and chooses forward-hedge ratios that minimise carry cost for a
 fixed risk budget, then backtests the policy out of sample and writes the decision report.
 All market data is public and cached in the repository; no real company's figures are
 used or implied.
@@ -28,7 +28,11 @@ the 21-day 99% ES of the forecast book from USD 12.9m to the USD 4m budget. The 
 spent where risk reduction is expensive: BRL at 9.7% a year, MXN at 2.7% and INR at 1.6%.
 
 **Out of sample, 2015 to 2026, monthly rebalance, 142 months
-(`reports/policy_backtest.md`):**
+(`reports/policy_backtest.md`):** every policy loses money in total, and that is the
+market, not a bug. The business is structurally long foreign currency (it holds merchant
+receivables in all ten), and the dollar rose against most of them from 2015, BRL and INR
+above all: the unhedged book lost USD 23.8m on currency moves, 18.9m of it in those two.
+Hedging decides how much of that loss is kept and what it costs to avoid.
 
 | policy | P&L vol (USD m / yr) | total FX P&L (USD m) | hedging cost per year (+ = cost) | max drawdown | months losing > USD 4m |
 |---|---|---|---|---|---|
@@ -116,7 +120,7 @@ calibration plot shows this rather than hiding it.
 ```bash
 uv sync --all-groups            # Python 3.12 environment from uv.lock
 uv run fxrisk all               # fetch (no-op from cache) -> quality -> flows -> exposure -> forecast -> backtest -> hedge -> risk -> report
-uv run pytest                   # 102 tests, no network, about a minute
+uv run pytest                   # 123 tests, no network, about twenty seconds
 ```
 
 Individual stages run in the same order as `all`; the whole pipeline takes about a
@@ -145,8 +149,9 @@ read and write and "allow GitHub Actions to create pull requests" enabled.
 
 ## Data sources
 
-All series were retrieved on **2026-11-06 (UTC)**; exact timestamps, URLs and file hashes
-are in `data/cache/manifest.json`. Coverage is 2010-01-04 onward.
+All series were retrieved on **2026-11-06 (UTC)**, except the ECB deposit facility rate,
+added on 2026-11-10; exact timestamps, URLs and file hashes are in
+`data/cache/manifest.json`. Coverage is 2010-01-04 onward.
 
 | Source | Series | Used for |
 |---|---|---|
@@ -165,6 +170,23 @@ effects (daily average vs noon). ECB-derived rates differ by 7-35 bp at the medi
 CET vs noon NY). Tolerances are set several times above these levels so the check catches
 unit and inversion errors, not noise (ADR-0005). Every run prints the full table in
 `reports/quality_report.md`.
+
+### Why the quality report says WARN
+
+The only warning is the return-outlier review: 33 daily moves beyond six EWMA standard
+deviations since 2010. A statistical filter cannot tell a market event from a bad print,
+so each move is checked against the sources the master price did not come from. All 33
+are confirmed by at least one independent source and 30 by every one, so they are market
+moves, not data errors. Most are named episodes: the Swiss franc floor removal (15 January
+2015), Brexit (24 June 2016), the US election (9 November 2016), Brazil's "Joesley Day"
+(18 May 2017), the April 2025 tariff selloff. The recent BRL moves (+4.6% on 5 October
+2026, -7.7% on 26 October 2026) appear in FRED, the Bank of Canada and the ECB alike. The
+three partial confirmations are explained: two are late-day moves the ECB's 14:15 CET
+fixing catches a day later, and one (CAD, 6 January 2010) is a 0.4% move that exceeds six
+sigma only because it falls on the third day of data, before the volatility estimate
+means anything. The table also gives each
+move's span in calendar days, so a "daily" move that covers a source holiday (INR on
+13 October 2026, four days) is visible as such.
 
 ### Why these ten currencies
 

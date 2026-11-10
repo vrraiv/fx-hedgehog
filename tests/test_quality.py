@@ -87,3 +87,34 @@ def test_ewma_vol_is_lagged() -> None:
     assert pd.isna(v.iloc[0])
     assert v.iloc[10] == 0.0  # the shock day itself uses only past returns
     assert v.iloc[11] > 0.0
+
+
+def _scale(cache: SeriesCache, key: str, factor: float, start: str, end: str | None = None) -> None:
+    source, series_id = key.split(":")
+    s = cache.read(source, series_id)
+    mask = (s.index >= start) & (s.index <= (end or s.index[-1]))
+    s[mask] = s[mask] * factor
+    cache.write(source, series_id, s, url="test://mini")
+
+
+def test_outliers_are_checked_against_the_other_sources(
+    tmp_paths: config.Paths, mini: MiniTruth
+) -> None:
+    cache = SeriesCache(tmp_paths.cache_dir)
+    # a genuine EUR move: every source sees EUR 8% stronger from 20 January
+    for key in (
+        "fred:DEXUSEU",
+        "boc:FXEURCAD",
+        "ecb:D.USD.EUR.SP00.A",
+        "ecb:D.JPY.EUR.SP00.A",
+        "ecb:D.CAD.EUR.SP00.A",
+    ):
+        _scale(cache, key, 1.08, "2017-01-20")
+    # a bad print: FRED alone shows JPY 10% stronger for one day
+    _scale(cache, "fred:DEXJPUS", 1 / 1.10, "2017-01-24", "2017-01-24")
+    report = _run(tmp_paths)
+    out = {c.name: c for c in report.checks}["return_outliers"]
+    ev = out.evidence.set_index(["ccy", "date"])
+    assert ev.loc[("EUR", "2017-01-20"), "confirmed_by"] == "2 of 2"
+    assert ev.loc[("JPY", "2017-01-24"), "confirmed_by"] == "0 of 2"
+    assert "by none" in out.summary
