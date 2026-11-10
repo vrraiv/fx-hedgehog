@@ -1,12 +1,12 @@
 # Data quality report
 
-Generated 2026-11-10 17:38 UTC - overall **WARN**
+Generated 2026-11-10 18:09 UTC - overall **WARN**
 
 | check | status | summary |
 |---|---|---|
 | cache_complete | PASS | all 66 registered series cached |
 | schema | PASS | all cached files well-formed |
-| staleness | PASS | all series fresh at retrieval; cache refreshed within the last two weeks |
+| staleness | WARN | 2 series stale or lagging |
 | reconciliation | PASS | all 20 currency/source pairs within tolerance |
 | master_completeness | PASS | 0 NULL cells across 10 currencies; 1 cells filled from BoC/ECB |
 | calendar | PASS | no gaps longer than 6 calendar days |
@@ -23,9 +23,14 @@ all 66 registered series cached
 
 all cached files well-formed
 
-### staleness - **PASS**
+### staleness - **WARN**
 
-all series fresh at retrieval; cache refreshed within the last two weeks
+2 series stale or lagging
+
+| series | last_date | retrieved | lag_days | limit_days | level |
+|---|---|---|---|---|---|
+| statcan:v1446859481 | 2026-08-01 | 2026-11-10 | 101 | 130 | WARN |
+| statcan:v1446859483 | 2026-08-01 | 2026-11-10 | 101 | 130 | WARN |
 
 ### reconciliation - **PASS**
 
@@ -33,26 +38,26 @@ all 20 currency/source pairs within tolerance
 
 | ccy | source | n_days | median_abs_bp | p99_abs_bp | max_abs_bp | mean_bp | status | breaches |
 |---|---|---|---|---|---|---|---|---|
-| AUD | boc | 4115 | 2.29 | 31.6 | 95.8 | -0.83 | PASS |  |
-| BRL | boc | 4115 | 4.81 | 55.7 | 132.9 | -1.63 | PASS |  |
-| CAD | boc | 4115 | 2.17 | 24.8 | 64.5 | -0.75 | PASS |  |
-| CHF | boc | 4115 | 2.45 | 24.6 | 87.7 | -0.91 | PASS |  |
-| EUR | boc | 4115 | 1.61 | 23.5 | 82 | -0.25 | PASS |  |
-| GBP | boc | 4115 | 1.87 | 30.5 | 68.5 | -0.97 | PASS |  |
-| INR | boc | 4114 | 2.67 | 38.6 | 200.4 | -1.49 | PASS |  |
-| JPY | boc | 4115 | 3.26 | 28.3 | 183.1 | -0.56 | PASS |  |
-| MXN | boc | 4115 | 3.19 | 46.7 | 126.7 | -1.32 | PASS |  |
-| SGD | boc | 4115 | 1.97 | 13.8 | 49.1 | -1.33 | PASS |  |
-| AUD | ecb | 4156 | 19.44 | 115.1 | 274.5 | -0.63 | PASS |  |
-| BRL | ecb | 4156 | 35.28 | 184 | 759.7 | -0.35 | PASS |  |
-| CAD | ecb | 4156 | 17.11 | 98.6 | 246.7 | -0.54 | PASS |  |
-| CHF | ecb | 4156 | 17.51 | 109.8 | 292.7 | -2.36 | PASS |  |
-| EUR | ecb | 4156 | 16.23 | 103.8 | 277.1 | -1.08 | PASS |  |
-| GBP | ecb | 4156 | 16.48 | 97.1 | 238 | -1.35 | PASS |  |
-| INR | ecb | 4155 | 6.55 | 57.3 | 206.3 | -4.67 | PASS |  |
-| JPY | ecb | 4156 | 15.29 | 105 | 358.1 | -1.2 | PASS |  |
-| MXN | ecb | 4156 | 25.9 | 127.4 | 262.1 | -1.01 | PASS |  |
-| SGD | ecb | 4156 | 8.62 | 50.9 | 125.6 | -1.75 | PASS |  |
+| AUD | boc | 4120 | 2.29 | 31.6 | 95.8 | -0.83 | PASS |  |
+| BRL | boc | 4120 | 4.81 | 55.7 | 132.9 | -1.63 | PASS |  |
+| CAD | boc | 4120 | 2.17 | 24.8 | 64.5 | -0.75 | PASS |  |
+| CHF | boc | 4120 | 2.45 | 24.6 | 87.7 | -0.91 | PASS |  |
+| EUR | boc | 4120 | 1.62 | 23.5 | 82 | -0.25 | PASS |  |
+| GBP | boc | 4120 | 1.88 | 30.4 | 68.5 | -0.97 | PASS |  |
+| INR | boc | 4119 | 2.67 | 38.6 | 200.4 | -1.49 | PASS |  |
+| JPY | boc | 4120 | 3.26 | 28.3 | 183.1 | -0.56 | PASS |  |
+| MXN | boc | 4120 | 3.19 | 46.6 | 126.7 | -1.32 | PASS |  |
+| SGD | boc | 4120 | 1.97 | 13.8 | 49.1 | -1.33 | PASS |  |
+| AUD | ecb | 4161 | 19.43 | 115.1 | 274.5 | -0.61 | PASS |  |
+| BRL | ecb | 4161 | 35.18 | 183.9 | 759.7 | -0.35 | PASS |  |
+| CAD | ecb | 4161 | 17.11 | 98.6 | 246.7 | -0.52 | PASS |  |
+| CHF | ecb | 4161 | 17.51 | 109.8 | 292.7 | -2.36 | PASS |  |
+| EUR | ecb | 4161 | 16.22 | 103.7 | 277.1 | -1.06 | PASS |  |
+| GBP | ecb | 4161 | 16.46 | 97.1 | 238 | -1.35 | PASS |  |
+| INR | ecb | 4160 | 6.54 | 57.3 | 206.3 | -4.66 | PASS |  |
+| JPY | ecb | 4161 | 15.28 | 104.9 | 358.1 | -1.21 | PASS |  |
+| MXN | ecb | 4161 | 25.98 | 127.4 | 262.1 | -1.01 | PASS |  |
+| SGD | ecb | 4161 | 8.6 | 50.9 | 125.6 | -1.75 | PASS |  |
 
 ### master_completeness - **PASS**
 
@@ -60,16 +65,16 @@ all 20 currency/source pairs within tolerance
 
 | ccy | n_days | n_null | n_fred | n_boc | n_ecb | null_share |
 |---|---|---|---|---|---|---|
-| AUD | 4210 | 0 | 4,210 | 0 | 0 | 0 |
-| BRL | 4210 | 0 | 4,210 | 0 | 0 | 0 |
-| CAD | 4210 | 0 | 4,210 | 0 | 0 | 0 |
-| CHF | 4210 | 0 | 4,210 | 0 | 0 | 0 |
-| EUR | 4210 | 0 | 4,210 | 0 | 0 | 0 |
-| GBP | 4210 | 0 | 4,210 | 0 | 0 | 0 |
-| INR | 4210 | 0 | 4,209 | 1 | 0 | 0 |
-| JPY | 4210 | 0 | 4,210 | 0 | 0 | 0 |
-| MXN | 4210 | 0 | 4,210 | 0 | 0 | 0 |
-| SGD | 4210 | 0 | 4,210 | 0 | 0 | 0 |
+| AUD | 4215 | 0 | 4,215 | 0 | 0 | 0 |
+| BRL | 4215 | 0 | 4,215 | 0 | 0 | 0 |
+| CAD | 4215 | 0 | 4,215 | 0 | 0 | 0 |
+| CHF | 4215 | 0 | 4,215 | 0 | 0 | 0 |
+| EUR | 4215 | 0 | 4,215 | 0 | 0 | 0 |
+| GBP | 4215 | 0 | 4,215 | 0 | 0 | 0 |
+| INR | 4215 | 0 | 4,214 | 1 | 0 | 0 |
+| JPY | 4215 | 0 | 4,215 | 0 | 0 | 0 |
+| MXN | 4215 | 0 | 4,215 | 0 | 0 | 0 |
+| SGD | 4215 | 0 | 4,215 | 0 | 0 | 0 |
 
 ### calendar - **PASS**
 
