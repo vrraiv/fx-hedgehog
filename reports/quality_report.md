@@ -1,6 +1,6 @@
 # Data quality report
 
-Generated 2026-11-09 23:31 UTC - overall **WARN**
+Generated 2026-11-10 01:25 UTC - overall **WARN**
 
 | check | status | summary |
 |---|---|---|
