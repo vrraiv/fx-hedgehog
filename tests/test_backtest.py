@@ -5,7 +5,7 @@ import pandas as pd
 from scipy import stats
 
 from fx_treasury_risk.backtest import coverage
-from fx_treasury_risk.backtest.var_backtest import forecast_series
+from fx_treasury_risk.backtest.var_backtest import forecast_series, select_model
 
 
 def test_kupiec_accepts_correct_and_rejects_wrong_rate() -> None:
@@ -86,12 +86,50 @@ def test_forecast_series_coverage_on_gaussian_world() -> None:
     idx = pd.bdate_range("2010-01-04", periods=n)
     r = pd.DataFrame(rng.standard_normal((n, 2)) * 0.01, index=idx, columns=["A", "B"])
     w = pd.DataFrame(1e6, index=idx, columns=["A", "B"])
-    f = forecast_series(r, w, "normal_sample", 0.99, oos_start=idx[1000], window=1000, n_sims=50)
+    f = forecast_series(r, w, "normal_sample", 0.99, start=idx[1000], window=1000, n_sims=50)
     assert len(f.loss) == n - 1000
     c = coverage.coverage_tests(f.loss, f.var, 0.99)
     assert c.kupiec_p > 0.01 and 0.003 < c.exception_rate < 0.025
-    f2 = forecast_series(r, w, "historical", 0.95, oos_start=idx[1000], window=1000, n_sims=50)
+    f2 = forecast_series(r, w, "historical", 0.95, start=idx[1000], window=1000, n_sims=50)
     c2 = coverage.coverage_tests(f2.loss, f2.var, 0.95)
     assert 0.03 < c2.exception_rate < 0.075
-    f3 = forecast_series(r, w, "t_ewma", 0.99, oos_start=idx[1000], window=1000, n_sims=50)
+    f3 = forecast_series(r, w, "t_ewma", 0.99, start=idx[1000], window=1000, n_sims=50)
     assert np.all(f3.es > f3.var)
+
+
+def test_consecutive_exceptions_counted() -> None:
+    loss = np.array([0, 2, 2, 0, 2, 0, 2, 2, 2], dtype=float)
+    c = coverage.coverage_tests(loss, np.ones_like(loss), 0.99)
+    assert c.n_exceptions == 6 and c.n_consecutive == 3
+
+
+def test_fz0_prefers_the_true_model() -> None:
+    rng = np.random.default_rng(2)
+    alpha = 0.99
+    sigma = np.exp(rng.standard_normal(20000) * 0.5)
+    loss = rng.standard_normal(20000) * sigma
+    z = stats.norm.ppf(alpha)
+    k_es = stats.norm.pdf(z) / (1 - alpha)
+    true = coverage.fz0_score(loss, z * sigma, k_es * sigma, alpha).mean()
+    flat = np.full_like(sigma, np.sqrt(np.mean(sigma**2)))
+    wrong = coverage.fz0_score(loss, z * flat, k_es * flat, alpha).mean()
+    small = coverage.fz0_score(loss, 0.7 * z * sigma, 0.7 * k_es * sigma, alpha).mean()
+    assert true < wrong and true < small
+
+
+def test_diebold_mariano() -> None:
+    rng = np.random.default_rng(4)
+    _, p_null = coverage.diebold_mariano(rng.standard_normal(2000))
+    stat, p_alt = coverage.diebold_mariano(rng.standard_normal(2000) + 0.2)
+    assert p_null > 0.01 and p_alt < 1e-6 and stat > 0
+
+
+def test_select_model_ignores_incompatible_and_flags_best() -> None:
+    rng = np.random.default_rng(6)
+    base = rng.standard_normal(500)
+    noise = 0.2 * rng.standard_normal(500)
+    scores = {"historical": base - 1.0, "a": base + 0.01, "b": base + 0.5 + noise}
+    sel = select_model(scores, {"historical": 5, "a": 5, "b": 5}, ("a", "b"))
+    chosen = sel.loc[sel["selected"], "method"].tolist()
+    assert chosen == ["a"]
+    assert sel.set_index("method").loc["b", "dm_p_vs_selected"] < 0.01

@@ -134,3 +134,18 @@ def test_master_precedence_and_forward_fill(tmp_paths: config.Paths) -> None:
     assert filled[1] is True
     assert filled[0] == pytest.approx(mini.usd_per_eur["2017-01-12"], rel=1e-9)
     con.close()
+
+
+def test_cache_files_are_written_with_lf(tmp_paths: config.Paths, mini: MiniTruth) -> None:
+    for path in tmp_paths.cache_dir.glob("*/*.csv"):
+        assert b"\r\n" not in path.read_bytes(), path
+
+
+def test_partially_loaded_cache_fails_loudly(tmp_paths: config.Paths, mini: MiniTruth) -> None:
+    # One file with different line endings is dropped by the multi-file CSV reader without
+    # an error; the manifest row counts must catch it.
+    files = sorted(tmp_paths.cache_dir.glob("*/*.csv"))
+    victim = files[-1]
+    victim.write_bytes(victim.read_bytes().replace(b"\n", b"\r\n"))
+    with pytest.raises(RuntimeError, match="did not load completely"):
+        db.build_database(tmp_paths)

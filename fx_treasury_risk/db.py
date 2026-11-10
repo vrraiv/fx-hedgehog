@@ -18,6 +18,7 @@ import duckdb
 import pandas as pd
 
 from fx_treasury_risk import config
+from fx_treasury_risk.data.cache import SeriesCache
 from fx_treasury_risk.data.registry import ALL_SERIES
 
 log = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ def build_database(paths: config.Paths) -> duckdb.DuckDBPyConnection:
     con = connect(paths)
     cache_glob = (paths.cache_dir / "*" / "*.csv").as_posix()
     execute_file(con, "010_raw_observations", cache_glob=cache_glob)
+    check_raw_counts(con, SeriesCache(paths.cache_dir))
     con.register("catalog_df", catalog_frame())
     execute_file(con, "020_series_catalog")
     con.unregister("catalog_df")
@@ -82,6 +84,28 @@ def build_database(paths: config.Paths) -> duckdb.DuckDBPyConnection:
     n_raw = con.execute("SELECT count(*) FROM raw_observations").fetchall()[0][0]
     log.info("database rebuilt at %s (%s raw observations)", paths.db_path, n_raw)
     return con
+
+
+def check_raw_counts(con: duckdb.DuckDBPyConnection, cache: SeriesCache) -> None:
+    """Fail if any cached series loaded a different number of rows than its manifest says.
+
+    One glob reads every cached CSV, and a file the reader cannot parse the same way as the
+    others (for instance, different line endings) is dropped silently rather than raising.
+    The manifest records each series' row count at write time, so it is the reference.
+    """
+    loaded = {
+        (str(s), str(i)): int(n)
+        for s, i, n in con.execute(
+            "SELECT source, series_id, count(*) FROM raw_observations GROUP BY ALL"
+        ).fetchall()
+    }
+    bad = []
+    for e in cache.manifest().values():
+        n = loaded.get((e.source, e.series_id), 0)
+        if n != e.n_obs:
+            bad.append(f"{e.source}:{e.series_id} (manifest {e.n_obs}, loaded {n})")
+    if bad:
+        raise RuntimeError("cached series did not load completely: " + "; ".join(bad))
 
 
 def read_table(con: duckdb.DuckDBPyConnection, name: str) -> pd.DataFrame:

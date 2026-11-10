@@ -100,3 +100,40 @@ def test_hedge_is_sized_on_the_average_over_its_holding_month() -> None:
     assert by_origin.loc[origin, "EUR"] == pytest.approx(expected)
     with pytest.raises(ValueError, match="holding month"):
         holding_month_mean(medians, pd.Timestamp("2021-06-30"))
+
+
+def test_compare_policies_splits_known_carry_from_spot() -> None:
+    rng = np.random.default_rng(8)
+    months = pd.date_range("2015-01-01", periods=120, freq="MS")
+    rows = []
+    for m in months:
+        spot = rng.standard_normal() * 1e6
+        rows.append(
+            {
+                "policy": "full_hedge",
+                "rebalance": m,
+                "pnl_unhedged": 0.0,
+                "pnl_hedge_mtm": 0.0,
+                "pnl_carry": -0.1e6,
+                "pnl_spread": -0.01e6,
+            }
+        )
+        rows.append(
+            {
+                "policy": "optimizer",
+                "rebalance": m,
+                "pnl_unhedged": spot,
+                "pnl_hedge_mtm": 0.0,
+                "pnl_carry": 0.1e6,
+                "pnl_spread": -0.005e6,
+            }
+        )
+    monthly = pd.DataFrame(rows)
+    monthly["pnl_total"] = monthly[
+        ["pnl_unhedged", "pnl_hedge_mtm", "pnl_carry", "pnl_spread"]
+    ].sum(axis=1)
+    c = policy.compare_policies(monthly).set_index("versus").loc["full_hedge"]
+    assert c["n_months"] == 120
+    assert c["carry_spread_diff_usd"] == pytest.approx(120 * 0.205e6)
+    assert c["total_diff_usd"] == pytest.approx(c["carry_spread_diff_usd"] + c["spot_diff_usd"])
+    assert 0 <= c["p_value"] <= 1

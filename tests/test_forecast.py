@@ -76,8 +76,12 @@ def test_seasonal_naive_point_and_widening_intervals() -> None:
     f = models.seasonal_naive(y, cal, horizon=63, window=300)
     q = f.quantiles
     med = q[:, models.QUANTILES.index(0.5)]
-    # horizon 1 repeats the value 21 days earlier (times the median error ratio, close to 1)
-    assert med[0] == pytest.approx(y.iloc[-21], rel=0.1)
+    # horizon 1 repeats the value four weeks before the target (same weekday), times the
+    # median error ratio, which is close to 1
+    target = f.dates[0]
+    src = y.index[y.index <= target - pd.Timedelta(days=28)][-1]
+    assert src.day_of_week == target.day_of_week
+    assert med[0] == pytest.approx(y.loc[src], rel=0.1)
     width = q[:, -1] / q[:, 0]
     assert width[41] >= width[0] * 0.95  # 42-day ahead uses 2 seasons back: not narrower
     assert f.to_frame().shape == (63, 2 + 2 + len(models.QUANTILES))

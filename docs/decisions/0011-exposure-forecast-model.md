@@ -17,9 +17,13 @@ or 21 a poor fit: the month-end effect is calendar-driven, not lag-driven.
 
 ## Decision
 
-* **Baseline: seasonal naive** at lag 21 trading days (``y[t+h] = y[t+h-21k]``), with
-  intervals from the empirical quantiles of its own in-window log errors at each
-  horizon.
+* **Baseline: seasonal naive, same weekday four weeks earlier** (the target date minus
+  28k calendar days, the last trading day on or before it if that is a holiday, with k
+  the fewest four-week steps back to the origin), with intervals from the empirical
+  quantiles of the same rule's in-window log errors at each horizon. An earlier version
+  used a lag of 21 trading days, which drifts across weekdays; with flows that differ by
+  weekday that made the baseline weaker than a treasury analyst's obvious first guess and
+  roughly doubled the reported skill (0.73-0.81 against 0.26-0.64 now).
 * **Model: calendar regression with AR(1) errors on log exposure** (a structural
   time-series model with deterministic components): weekday dummies, 0-4 trading days
   to month end, first three trading days of the month, month of year, linear trend;
@@ -41,16 +45,26 @@ or 21 a poor fit: the month-end effect is calendar-driven, not lag-driven.
 
 ## Evidence (reports/forecast_eval.md, 140 monthly origins 2015-2026)
 
-| horizon | pinball % of exposure (model / naive) | median MAPE | coverage 50 / 80 / 95 |
-|---|---|---|---|
-| 1 | 2.1 / 9.3 | 7.3% | 0.43 / 0.71 / 0.88 |
-| 21 | 2.0 / 10.7 | 6.8% | 0.40 / 0.70 / 0.86 |
-| 63 | 2.0 / 9.4 | 6.9% | 0.42 / 0.69 / 0.83 |
+| horizon | pinball % of exposure (model / naive) | skill | median MAPE | coverage 50 / 80 / 95 |
+|---|---|---|---|---|
+| 1 | 2.8 / 3.6 | 0.26 | 9.9% | 0.42 / 0.71 / 0.87 |
+| 21 | 2.2 / 7.0 | 0.64 | 7.6% | 0.41 / 0.68 / 0.85 |
+| 63 | 2.2 / 6.8 | 0.62 | 7.7% | 0.40 / 0.69 / 0.84 |
 
-Skill versus the naive is about 0.8 at every horizon. Intervals are 10-15% too narrow
-across the board (empirical 0.86 at nominal 0.95): the 2020 regime shift and in-sample
-optimism of a 25-parameter fit. The calibration plot shows this honestly; a conformal
-adjustment from past out-of-sample errors is backlog B16.
+At one day the naive is hard to beat, since four weeks earlier is usually the same kind
+of day; from one week out the calendar model's knowledge of where month ends fall pays
+off. Its intervals are 10-15% too narrow across the board (empirical 0.85 at nominal
+0.95): the 2020 regime shift and in-sample optimism of a 25-parameter fit. The naive's
+own intervals are better calibrated (0.91-0.95), because they are built from
+out-of-sample-like errors of a rule with no fitted parameters. The calibration plot
+shows this honestly; a conformal adjustment from past out-of-sample errors is backlog
+B16.
+
+**The skill is an upper bound.** The regression has exactly the terms the synthetic
+flows were generated with (weekday, month end, month of year, trend, AR(1) noise;
+ADR-0008), so it is correctly specified by construction. On a real book the same model
+would have to discover that structure and would face shocks the generator does not
+produce; the evaluation method transfers, the skill number does not.
 
 ## Consequences
 

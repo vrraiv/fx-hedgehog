@@ -112,7 +112,16 @@ def write_risk_tables(paths: config.Paths, run: RiskRun) -> Path:
         tbl.columns = [f"{m[:-4]} {h}d {c:.0%}" for m, h, c in labels]
         sections.append((f"VaR / ES, basis = {basis} (USD m)", df_to_markdown(tbl, index=True)))
     st = run.stress[run.stress["basis"] == "net"][
-        ["scenario", "kind", "window", "propagated", "largest_move", "pnl_usd", "note"]
+        [
+            "scenario",
+            "kind",
+            "window",
+            "propagated",
+            "largest_move",
+            "implied_moves",
+            "pnl_usd",
+            "note",
+        ]
     ].copy()
     st["pnl_usd"] = (st["pnl_usd"] / 1e6).round(2)
     st = st.rename(columns={"pnl_usd": "P&L (USD m)"})

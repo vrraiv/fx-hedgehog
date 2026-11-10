@@ -2,10 +2,14 @@
 
 *Historical replay* applies the actual log change of every currency over a named window
 to today's exposures. *Hypothetical* scenarios shock a subset of currencies and propagate
-the shock to the others by their conditional expectation under a Gaussian model with the
-EWMA covariance: ``E[r_O | r_S] = Sigma_OS Sigma_SS^{-1} r_S``. That is the documented
-correlation assumption; the alternative of shocking only the named currencies is also
-reported (``propagate=False``) so the reader can see what the assumption adds.
+the shock to the others by their conditional expectation under a Gaussian model:
+``E[r_O | r_S] = Sigma_OS Sigma_SS^{-1} r_S``, with the sample covariance of the last
+1,000 days. A stress scenario should rest on through-the-cycle co-movement, not on the
+last month's: under EWMA(0.94), whose memory is about a month, a +10% JPY shock once
+implied BRL +11% (a beta above one from a few weeks of data), against +1.7% under the
+1,000-day covariance. The alternative of shocking only the named currencies is also
+reported (``propagate=False``), and each propagated row lists its largest implied moves,
+so the reader can see what the assumption adds.
 """
 
 from __future__ import annotations
@@ -80,7 +84,10 @@ HYPOTHETICAL_SHOCKS: tuple[HypotheticalShock, ...] = (
         "eur_down_10", {"EUR": -0.10}, "euro-specific shock; others follow conditionally"
     ),
     HypotheticalShock(
-        "jpy_up_10", {"JPY": 0.10}, "yen safe-haven rally; others follow conditionally"
+        "jpy_up_10",
+        {"JPY": 0.10},
+        "yen +10% against USD; others follow conditionally, which mostly means broad USD "
+        "weakness rather than an EM risk-off",
     ),
 )
 
@@ -114,15 +121,25 @@ def conditional_shock(
     return pd.Series([values[c] for c in ccys], index=ccys, dtype=float)
 
 
+PROPAGATION_WINDOW = 1000
+
+
+def implied_moves(shock: pd.Series, named: dict[str, float], top: int = 3) -> str:
+    """The ``top`` largest moves among the currencies the scenario did not name."""
+    others = shock.drop(labels=[c for c in named if c in shock.index])
+    largest = others.abs().sort_values(ascending=False).index[:top]
+    return ", ".join(f"{c} {100 * others[c]:+.1f}%" for c in largest)
+
+
 def stress_table(
     exposure_usd: pd.Series,
     prices: pd.DataFrame,
     returns: pd.DataFrame,
-    lam: float = 0.94,
+    window: int = PROPAGATION_WINDOW,
 ) -> pd.DataFrame:
     """Historical replays and hypothetical shocks, one row each, P&L in USD."""
     ccys = list(exposure_usd.index)
-    cov = cv.ewma_cov(returns[ccys].dropna(), lam)
+    cov = cv.sample_cov(returns[ccys].dropna(), window)
     rows: list[dict[str, object]] = []
     for w in HISTORICAL_WINDOWS:
         shock = replay_returns(prices[ccys], w)
@@ -137,6 +154,7 @@ def stress_table(
                 "pnl_usd": float(pnl),
                 "largest_move": f"{worst} {100 * shock[worst]:+.1f}%",
                 "propagated": False,
+                "implied_moves": "",
             }
         )
     for h in HYPOTHETICAL_SHOCKS:
@@ -160,6 +178,7 @@ def stress_table(
                     "pnl_usd": float(pnl),
                     "largest_move": f"{top} {100 * shock[top]:+.1f}%",
                     "propagated": propagated,
+                    "implied_moves": implied_moves(shock, h.shocks) if propagated else "",
                 }
             )
     return pd.DataFrame(rows)

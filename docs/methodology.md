@@ -206,7 +206,8 @@ Code: `fx_treasury_risk/risk/`. Choices: ADR-0009.
   copula over EWMA correlations, t marginals and `h` compounded daily steps.
 * **Stress:** historical replays (CHF 2015, Brexit 2016, March 2020, USD surge 2022,
   taper tantrum 2013) and hypothetical shocks with Gaussian conditional propagation to
-  unnamed currencies, reported with and without propagation.
+  unnamed currencies under the 1,000-day sample covariance, reported with and without
+  propagation and with the largest implied moves listed.
 * **Output:** `risk_results` and `stress_results` in DuckDB; `reports/risk_tables.md`.
 
 ## 6. Exposure forecasting
@@ -216,7 +217,8 @@ Code: `fx_treasury_risk/forecast/`. Choices and evidence: ADR-0011. Output:
 
 * **Target:** group net exposure per currency in currency units (`net_fcy` from
   `exposure_group_fx`), on the NY business-day calendar, 1-63 trading days ahead.
-* **Baseline:** seasonal naive at lag 21 trading days; intervals from its own in-window
+* **Baseline:** seasonal naive, the value on the same weekday four weeks earlier
+  (28k calendar days, last trading day on or before); intervals from its own in-window
   error quantiles per horizon.
 * **Model:** log exposure regressed on calendar features (weekday, 0-4 trading days to
   month end, first three trading days of the month, month of year, linear trend) with
@@ -258,10 +260,14 @@ Formulation and solver: ADR-0012. Output: `reports/hedge_recommendation.md` and
 ### 8.1 VaR and ES coverage
 
 Code: `fx_treasury_risk/backtest/coverage.py`, `var_backtest.py`. Design: ADR-0010.
-Daily one-day forecasts from 2015-01-02 along the actual exposure path for historical
-simulation, normal (sample and EWMA covariance) and Student-t (EWMA) models. Tests:
-Kupiec, Christoffersen, conditional coverage, Basel traffic light, Acerbi-Szekely Z1 and
-Z2 with simulated p-values. Output: `var_backtest_results`; `reports/var_backtest.md`.
+Daily one-day forecasts along the actual exposure path for historical simulation,
+normal (sample and EWMA covariance) and Student-t (EWMA 0.94, EWMA 0.97, and GARCH(1,1)
+volatilities with EWMA correlations, `fx_treasury_risk/risk/garch.py`) models. The model
+the optimizer uses is selected on 2012-2014 by the mean FZ0 joint VaR/ES score, with a
+Diebold-Mariano test against the runner-up; every model is then tested from 2015-01-02:
+Kupiec, Christoffersen (with the count of back-to-back exceptions), conditional
+coverage, Basel traffic light, Acerbi-Szekely Z1 and Z2 with simulated p-values. Output:
+`var_model_selection`, `var_backtest_results`; `reports/var_backtest.md`.
 
 ### 8.2 Hedge-policy backtest
 
@@ -274,8 +280,11 @@ covers; realised P&L from the actual
 exposure path, forward mark-to-market, carry and spread. Policies: unhedged, legacy 50%,
 full hedge, optimizer under a fixed USD 4m ES budget. Metrics: P&L volatility (daily
 annualized and monthly), total P&L, carry and spread per year, maximum drawdown, worst
-month, months with a loss beyond the budget, share of months in which the budget bound;
-overall, by year, and for March/April 2020 and September/October 2022.
+month, months with a loss beyond the budget (a loss frequency) and beyond the policy's own
+ex-ante 99% VaR (the model test), share of months in which the budget bound; overall, by
+year, and for March/April 2020 and September/October 2022. The optimizer's P&L lead over
+each other policy is tested for a zero mean with a Newey-West t-statistic and split into
+carry plus spread (known at dealing) and spot (`policy_comparison`).
 
 ## 9. Reporting and operations
 

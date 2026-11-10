@@ -39,8 +39,13 @@ reach multi-day horizons, where the tail index comes from, and how exposure ente
 * **Stress:** five historical replays (CHF 2015, Brexit 2016, March 2020, the 2022 USD
   surge, the 2013 taper tantrum as the EM episode) and four hypothetical shocks. The
   hypothetical shocks name a subset of currencies and propagate to the rest by the
-  Gaussian conditional expectation under the EWMA(0.94) covariance; the unpropagated
-  variant is reported next to it so the effect of the correlation assumption is visible.
+  Gaussian conditional expectation under the sample covariance of the last 1,000 days;
+  the unpropagated variant is reported next to it, and each propagated row lists its
+  three largest implied moves, so the effect of the correlation assumption is visible.
+  The covariance was EWMA(0.94) until a sanity check showed a +10% JPY shock implying
+  BRL +11%: a month-long memory produced a beta above one that the 1,000-day sample
+  (BRL +1.7%) and Ledoit-Wolf (the same) do not support. Stress scenarios should rest
+  on through-the-cycle co-movement; the VaR models are where recent volatility belongs.
 * **Tidy output:** every estimate is a row with `method`, `cov_method`, `horizon_days`,
   `confidence`, `params`, `var_usd`, `es_usd`, `basis` (net or net of hedges) and
   `as_of`, stored in DuckDB as `risk_results` and `stress_results`.

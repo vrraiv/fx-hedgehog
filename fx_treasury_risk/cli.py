@@ -231,12 +231,15 @@ def backtest(
         bool, typer.Option("--skip-policy", help="Skip the hedge-policy backtest.")
     ] = False,
 ) -> None:
-    """VaR/ES coverage backtests from 2015 and the walk-forward hedge-policy backtest."""
+    """VaR/ES model selection (2012-14) and tests (2015-), and the hedge-policy backtest."""
     paths = config.Paths.from_env()
     if not skip_var:
         from fx_treasury_risk.backtest.var_backtest import run_var_backtest
 
-        out = run_var_backtest(paths, basis=basis)
+        run = run_var_backtest(paths, basis=basis)
+        sel = run.selection[["method", "sel_fz0", "dm_p_vs_selected", "selected", "oos_fz0"]]
+        console.print(sel.round(4).to_string(index=False))
+        out = run.results
         cols = [
             "method",
             "confidence",

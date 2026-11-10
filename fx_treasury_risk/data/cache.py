@@ -106,7 +106,7 @@ class SeriesCache:
             "series": {k: asdict(entries[k]) for k in sorted(entries)},
         }
         tmp = self._manifest_path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
         tmp.replace(self._manifest_path)
 
     def entry(self, source: str, series_id: str) -> CacheEntry | None:
@@ -142,7 +142,9 @@ class SeriesCache:
             float_format=_CSV_FLOAT_FORMAT,
             lineterminator="\n",
         )
-        path.write_text(csv_text, encoding="utf-8")
+        # newline="\n": on Windows, text mode would turn every line ending into CRLF, and
+        # DuckDB's multi-file CSV reader takes the line ending from the first file it reads
+        path.write_text(csv_text, encoding="utf-8", newline="\n")
         entry = CacheEntry(
             source=source,
             series_id=series_id,

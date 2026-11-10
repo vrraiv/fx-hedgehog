@@ -30,7 +30,7 @@ spent where risk reduction is expensive: BRL at 9.7% a year, MXN at 2.7% and INR
 **Out of sample, 2015 to 2026, monthly rebalance, 142 months
 (`reports/policy_backtest.md`):**
 
-| policy | P&L vol (USD m / yr) | total FX P&L (USD m) | hedging cost per year (+ = cost) | max drawdown | months with loss beyond budget |
+| policy | P&L vol (USD m / yr) | total FX P&L (USD m) | hedging cost per year (+ = cost) | max drawdown | months losing > USD 4m |
 |---|---|---|---|---|---|
 | unhedged | 10.0 | -23.8 | 0.0 | -36.3 | 12 |
 | legacy 50% | 5.2 | -22.3 | 1.2 | -26.1 | 1 |
@@ -39,28 +39,36 @@ spent where risk reduction is expensive: BRL at 9.7% a year, MXN at 2.7% and INR
 
 A full hedge removes three-quarters of the FX P&L volatility at a cost of USD 2.5m a year
 in carry and spread. The optimizer keeps about half of it, earns USD 0.9m a year instead,
-and finished USD 14m ahead of the full hedge over the period. That lead is all carry: the
-difference in carry and spread is USD 40m over the period, while the spot moves on the
-risk the optimizer left open in the high-yielding currencies (BRL, MXN, INR) lost 26m,
-giving back two-thirds of the carry those currencies paid. In March 2020 it
-lost USD 5.0m against an ex-ante ES of 3.7m, the one month beyond its budget; the budget
-covers the risk of the hedged *forecast* exposure, not forecast error or intra-month
-exposure swings. The frontier figure (`reports/figures/hedge_frontier.png`) shows the
+and finished USD 14m ahead of the full hedge over the period, **a lead that is not
+statistically distinguishable from zero** (Newey-West p = 0.34). It is made of USD 40m
+more carry and spread, which is known when the forwards are dealt, less USD 26m lost on
+spot in the high-yielding currencies it left open (BRL, MXN, INR), which is not. The case
+for the optimizer is that it takes carry within a stated risk budget, not that it has
+shown a P&L edge. Its monthly loss exceeded its ex-ante 99% VaR in 5 of 142 months
+against about 1.4 expected (binomial p = 0.015): the budget covers the risk of the hedged
+*forecast* exposure, not forecast error or intra-month exposure swings, so it is a
+looser bound on realised monthly loss than it looks. March 2020 was the worst month,
+USD 5.0m against an ex-ante ES of 3.7m. The frontier figure (`reports/figures/hedge_frontier.png`) shows the
 cost of any other budget, and the report's last section lists what the model does not
 know.
 
-**What the risk backtests say (`reports/var_backtest.md`):** on the synthetic book, daily
-from 2015, no model passes every test at 99%. The Student-t EWMA(0.94) model, which the
-optimizer uses, gets the exception count right (32 against 30 expected, Kupiec p = 0.66,
-Basel green) and the size of tail losses right (Acerbi-Szekely p = 0.20), but like every
-other model its exceptions cluster (Christoffersen p < 0.01), so its ES is a less
-reliable bound in stressed periods than the headline numbers suggest.
+**What the risk backtests say (`reports/var_backtest.md`):** the risk model is chosen on
+2012-2014 by a joint VaR/ES score (FZ0) and tested only on later data. Student-t with
+EWMA(0.94) covariance wins; Student-t with GARCH(1,1) volatilities is second and not
+distinguishable from it (Diebold-Mariano p = 0.77). Daily from 2015, no model passes every
+test at 99%. The chosen model gets the exception count right (32 against 30 expected,
+Kupiec p = 0.66, Basel green) and the size of tail losses right (Acerbi-Szekely p = 0.18),
+but its exceptions cluster (Christoffersen p < 0.01). That rests on three back-to-back
+exceptions, two in the week of the November 2016 US election; GARCH clusters slightly
+less but still fails. A faster volatility reacts after the first day of a jump, not
+before it, so in a stressed week the ES is a looser bound than the headline suggests.
 
 **Exposure forecasts (`reports/forecast_eval.md`):** a calendar-structural regression
-with AR(1) errors beats the seasonal naive by a skill of 0.73 to 0.81 across horizons
-from 1 to 63 days (median error 6-10% of exposure). Its 95% intervals cover 84-87% of
-outcomes, so they are somewhat too narrow; the calibration plot shows this rather than
-hiding it.
+with AR(1) errors beats a same-weekday-four-weeks-earlier naive by a skill of 0.26 at one
+day and 0.64 at the 21-day policy horizon (median error 6-10% of exposure). That skill is
+an upper bound: the regression has the same terms the synthetic flows were generated
+with. Its 95% intervals cover 84-87% of outcomes, so they are somewhat too narrow; the
+calibration plot shows this rather than hiding it.
 
 ## Architecture
 
@@ -97,7 +105,7 @@ hiding it.
 | Risk | `fx_treasury_risk/risk/` | returns, sample / EWMA / Ledoit-Wolf covariance, historical / normal / Student-t / t-copula Monte Carlo VaR and ES, stress |
 | Forecast | `fx_treasury_risk/forecast/` | seasonal naive and calendar-structural AR(1) exposure forecasts, rolling-origin evaluation, calibration figures |
 | Hedge | `fx_treasury_risk/hedge/`, `sql/100_rates_short.sql`, `config/hedge.yaml` | short-rate assembly, CIP forwards and carry, ES-budget optimizer (SLSQP), frontier |
-| Backtest | `fx_treasury_risk/backtest/` | Kupiec, Christoffersen, conditional coverage, traffic light, Acerbi-Szekely Z1/Z2; walk-forward policy backtest |
+| Backtest | `fx_treasury_risk/backtest/` | risk-model selection on 2012-2014 (FZ0 score, Diebold-Mariano) including a GARCH(1,1) candidate; Kupiec, Christoffersen, conditional coverage, traffic light, Acerbi-Szekely Z1/Z2 from 2015; walk-forward policy backtest with a significance test of the optimizer's lead |
 | Report | `fx_treasury_risk/report/`, `sql/110_report_views.sql` | markdown tables, the decision report assembled from persisted tables, exposure figures |
 | Operations | `dags/`, `.github/workflows/` | illustrative Airflow DAG; CI; weekly refresh that opens a PR |
 | CLI | `fx_treasury_risk/cli.py` | `fxrisk fetch \| quality \| flows \| exposure \| forecast \| hedge \| backtest \| risk \| report \| all` |
