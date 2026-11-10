@@ -242,7 +242,8 @@ Formulation and solver: ADR-0012. Output: `reports/hedge_recommendation.md` and
 
 * **Short rates** (`sql/100_rates_short.sql`): per currency a primary 3-month market
   rate where available, falling back to the BIS daily policy rate when the primary is
-  more than 120 days stale; monthly series carried to daily with an ASOF JOIN; SGD
+  more than 120 days stale; series carried to daily with an ASOF JOIN on the date each
+  value became available (a monthly average from the 1st of the following month); SGD
   proxied by USD and flagged. US T-bills converted from discount to simple yield.
 * **Forwards:** covered interest parity with simple rates and per-market day counts,
   tenor = calendar days to the next rebalance (30 for the as-of table). Forward points

@@ -67,6 +67,28 @@ def test_rates_short_view_precedence_and_proxy(tmp_paths: config.Paths, mini: Mi
         con.close()
 
 
+def test_monthly_rate_is_used_only_after_its_month_ends(
+    tmp_paths: config.Paths, mini: MiniTruth
+) -> None:
+    """An OECD monthly average dated the 1st must not price a forward inside that month."""
+    from fx_treasury_risk.data.cache import SeriesCache
+
+    monthly = pd.Series(
+        [1.0, 2.0, 3.0], index=pd.to_datetime(["2016-11-01", "2016-12-01", "2017-01-01"])
+    )
+    SeriesCache(tmp_paths.cache_dir).write("fred", "IR3TIB01EZM156N", monthly, url="test://")
+    con = db.build_database(tmp_paths)
+    try:
+        q = "SELECT rate_pct, rate_date FROM rates_short WHERE ccy = 'EUR' AND obs_date = ?"
+        # mid-December: the December average is not known yet, November's is
+        assert con.execute(q, ["2016-12-15"]).fetchall()[0][0] == 1.0
+        # mid-January: December's average is now known; January's is not
+        rate, ref = con.execute(q, ["2017-01-10"]).fetchall()[0]
+        assert rate == 2.0 and str(ref) == "2016-12-01"
+    finally:
+        con.close()
+
+
 def test_forward_table_shapes(tmp_paths: config.Paths, mini: MiniTruth) -> None:
     con = db.build_database(tmp_paths)
     try:

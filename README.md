@@ -196,8 +196,10 @@ optimizer's monthly positions replace it in the waterfall and the risk engine. D
   calibrated only to public retail-sales seasonality. Nothing here describes a real firm.
 * **SGD short rate is a USD proxy** (no verified public API; ADR-0006, backlog B1), so SGD
   carry is zero by construction.
-* **Monthly OECD rates** for most currencies, forward-filled; EUR and GBP series on FRED
-  lag by up to ten months and fall back to BIS policy rates (ADR-0006).
+* **Monthly OECD rates** for most currencies, each month's average used only once the
+  month is over, so a forward is priced on a rate one to two months old; publication lag
+  beyond that is not modelled. EUR and GBP series on FRED lag by up to ten months and
+  fall back to BIS policy rates (ADR-0006).
 * **Forwards only; no options, no cross-currency basis, no NDF basis** (hedging primer,
   section 5).
 * **Fixing-time mismatch** between sources is tolerated, not modelled.

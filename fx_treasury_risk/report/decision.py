@@ -809,9 +809,10 @@ def _limitations(d: ReportData, cov95: float, breaches: int, n_months: int) -> s
         "**Forwards only.** No options, no cross-currency basis, no NDF basis for BRL and "
         "INR; one-way spreads are stylized round numbers from `config/hedge.yaml` (hedging "
         "primer, section 5; backlog B3, B4, B18).",
-        "**Short rates are monthly OECD series for most currencies**, forward-filled, with "
-        "BIS policy rates as the fallback when a series lags; the SGD rate is a flagged USD "
-        "proxy so SGD carry is zero by construction (ADR-0006, backlog B1, B2).",
+        "**Short rates are monthly OECD series for most currencies**, each month's average "
+        "used only once the month is over (so one to two months old when a forward is "
+        "priced), with BIS policy rates as the fallback when a series lags; the SGD rate is "
+        "a flagged USD proxy so SGD carry is zero by construction (ADR-0006, backlog B1, B2).",
         "**Coverage is tested at one day.** The 21-day ES is a scaled one-day model; the "
         "overlapping-window tests at longer horizons have too little power to be decisive "
         "(ADR-0010, backlog B11).",
