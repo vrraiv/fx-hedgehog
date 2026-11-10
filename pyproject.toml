@@ -32,6 +32,12 @@ dev = [
     "types-requests>=2.32",
 ]
 
+[tool.uv]
+# Copy packages into the environment instead of hard-linking them from uv's cache. Hard
+# links fail on Windows when the cache or the project sits in a cloud-synced folder
+# (OneDrive: "incompatible hardlinks", os error 396). Costs a few seconds and some disk.
+link-mode = "copy"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

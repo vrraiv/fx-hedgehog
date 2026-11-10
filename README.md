@@ -117,14 +117,31 @@ calibration plot shows this rather than hiding it.
 
 ## How to run
 
+The only prerequisite is [uv](https://docs.astral.sh/uv/), which installs Python 3.12 and
+every dependency from the lock file. Git is needed to clone.
+
+```bash
+# macOS or Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh        # or: brew install uv
+```
+
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"   # or: winget install astral-sh.uv
+```
+
+Then, in any shell on any of the three systems, from the repository folder:
+
 ```bash
 uv sync --all-groups            # Python 3.12 environment from uv.lock
 uv run fxrisk all               # fetch (no-op from cache) -> quality -> flows -> exposure -> forecast -> backtest -> hedge -> risk -> report
 uv run pytest                   # 137 tests, no network, under half a minute
 ```
 
-Individual stages run in the same order as `all`; the whole pipeline takes about a
-minute and a half on a laptop. Every stage rebuilds what it writes, so a second run of
+No network access, API key or configuration is needed: the market data is in
+`data/cache/`. CI runs exactly these steps from a clean checkout on Linux, macOS and
+Windows. Individual stages run in the same order as `all`; the whole pipeline takes one
+and a half to two and a half minutes on a laptop. Every stage rebuilds what it writes, so a second run of
 `all` reproduces the first exactly.
 
 * A `FRED_API_KEY` in the environment or in a git-ignored `.env` switches the FRED
