@@ -2,7 +2,7 @@
 
 ## Summary
 
-Generated 2026-11-10 18:59 UTC from market data retrieved 2026-11-10; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, averaged over the trading days of 2026-12.
+Generated 2026-11-10 19:09 UTC from market data retrieved 2026-11-10; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, averaged over the trading days of 2026-12.
 
 ## The question and the answer
 
