@@ -112,9 +112,20 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 Then, in any shell on any of the three systems, from the repository folder:
 
 ```bash
-uv sync --all-groups            # Python 3.12 environment from uv.lock
-uv run fxrisk all               # fetch (no-op from cache) -> quality -> flows -> exposure -> forecast -> backtest -> hedge -> risk -> report -> readme
-uv run pytest                   # 137 tests, no network, under half a minute
+uv sync --all-groups                      # Python 3.12 environment from uv.lock
+uv run fxrisk all                         # fetch (no-op from cache) -> quality -> flows -> exposure -> forecast -> backtest -> hedge -> risk -> report -> readme
+uv run pytest                             # 138 tests, no network, under half a minute
+
+uv run fxrisk fetch --refresh             # re-download every series from the public APIs; run `all` after it
+uv run fxrisk fetch --source fred         # fetch one source only (fred, boc, ecb, bis, statcan); -s, repeatable
+uv run fxrisk quality --strict            # treat data-quality warnings as failures (exit 1)
+uv run fxrisk backtest --skip-var         # policy backtest only
+uv run fxrisk backtest --skip-policy      # VaR/ES coverage tests only
+uv run fxrisk backtest --basis net_of_hedges  # VaR/ES tests on exposure net of hedges (default: net)
+uv run fxrisk risk --mc-paths 5000        # Monte Carlo paths per horizon (default 20000; CI uses 5000)
+uv run fxrisk readme --check              # exit 1 if the README results block is stale; changes nothing
+uv run fxrisk --verbose all               # debug logging for any command (-v; goes before the command)
+uv run fxrisk version                     # print the package version
 ```
 
 No network access, API key or configuration is needed: the market data is in
@@ -128,8 +139,10 @@ the latest run's (`fxrisk readme --check` only reports whether the block is stal
 * A `FRED_API_KEY` in the environment or in a git-ignored `.env` switches the FRED
   loader to the official API; without it the public CSV download is used. Neither is
   needed to run from cache.
-* `uv run fxrisk fetch --refresh` re-downloads everything; `FXRISK_OFFLINE=1` forbids
-  network access (CI sets it).
+* `fetch --refresh` keeps the cached copy of any series whose download fails. The
+  weekly refresh commits new data to `main`, so on a checkout that is behind, `git pull`
+  is the usual way to get it; refreshing locally makes the cache and reports differ from
+  `main`. `FXRISK_OFFLINE=1` forbids network access (CI sets it).
 * `fxrisk quality` exits 1 if any check fails and writes the reasons to `reports/alerts.md`.
 * The DuckDB file `data/fxrisk.duckdb` is rebuilt from the cache and can be opened with
   any DuckDB client to inspect every intermediate table and view, including the ones the
