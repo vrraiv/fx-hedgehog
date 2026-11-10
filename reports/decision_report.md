@@ -2,7 +2,7 @@
 
 ## Summary
 
-Generated 2026-11-10 18:12 UTC from market data retrieved 2026-11-10; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, averaged over the trading days of 2026-12.
+Generated 2026-11-10 18:59 UTC from market data retrieved 2026-11-10; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, averaged over the trading days of 2026-12.
 
 ## The question and the answer
 
@@ -152,7 +152,7 @@ Which of these to believe is decided by the one-day coverage backtest on the net
 | Student-t, GARCH(1,1) volatilities | 95% | 158 | 148.1 | 17 | 0.41 | 0.01 | n/a | 0.23 | FAIL |
 | Student-t, GARCH(1,1) volatilities | 99% | 29 | 29.6 | 2 | 0.91 | 0.03 | green | 0.44 | FAIL |
 
-The model was chosen before that window opens: over 752 days of 2012-2014, scoring VaR and ES together with the FZ0 loss, the Student-t, EWMA 0.94 model scored best of the models the optimizer can use. The runner-up, the Student-t, GARCH(1,1) volatilities model, is not distinguishable from it (Diebold-Mariano p = 0.77), and scores slightly better after 2015; the choice is kept, not revisited. No model passes every test at 99% on this book. The optimizer uses the Student-t, EWMA 0.94 model, which fails on independence (Christoffersen): 32 exceptions against 29.6 expected (Kupiec p = 0.66), Christoffersen p = 0.00, Acerbi-Szekely p = 0.18. The independence failure rests on 3 exceptions that came the day after another: the model is right on average but slow to react inside a shock, so in a stressed week its ES budget is a looser bound than the table suggests. Its tail index is 5.1 on the latest window. Multi-day coverage is not tested formally because overlapping windows break the tests' independence assumption (ADR-0010); the 21-day ES is the one-day model scaled by the square-root of time under the t distribution.
+The model was chosen before that window opens: over 752 days of 2012-2014, scoring VaR and ES together with the FZ0 loss, the Student-t, EWMA 0.94 model scored best of the models the optimizer can use. The runner-up, the Student-t, GARCH(1,1) volatilities model, is not distinguishable from it (Diebold-Mariano p = 0.77), and scores slightly better after 2015; the choice is kept, not revisited. No model passes every test at 99% on this book. The optimizer uses the Student-t, EWMA 0.94 model, which fails on independence (Christoffersen): 32 exceptions against 29.6 expected (Kupiec p = 0.66), Christoffersen p = 0.00, Acerbi-Szekely p = 0.18. The independence failure rests on 3 exceptions that came the day after another: the model is right on average but slow to react inside a shock, so in a stressed week its ES budget is a looser bound than it looks. Its tail index is 5.1 on the latest window. Multi-day coverage is not tested formally because overlapping windows break the tests' independence assumption (ADR-0010); the 21-day ES is the one-day model scaled by the square-root of time under the t distribution.
 
 ## Stress
 

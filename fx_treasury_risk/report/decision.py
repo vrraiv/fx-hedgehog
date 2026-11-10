@@ -591,11 +591,11 @@ def _model_choice_text(d: ReportData) -> str:
         text += (
             f" The independence failure rests on {n} exception{'s' if n != 1 else ''} that "
             "came the day after another: the model is right on average but slow to react "
-            "inside a shock, so in a stressed week its ES budget is a looser bound than the "
-            "table suggests."
+            "inside a shock, so in a stressed week its ES budget is a looser bound than it "
+            "looks."
         )
     else:
-        text += " Its ES budget is therefore a less reliable bound than the table suggests."
+        text += " Its ES budget is therefore a less reliable bound than it looks."
     parts.append(text)
     return " ".join(p for p in parts if p)
 

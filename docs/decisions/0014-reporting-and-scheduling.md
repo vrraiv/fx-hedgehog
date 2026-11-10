@@ -22,6 +22,11 @@ production versus in this repository; and how should a data refresh reach `main`
   every other section, rather than re-running the checks or parsing the stage's
   markdown. Consequence: the report can never disagree with the stage reports, and a reader
   can trace every number to a table in `data/fxrisk.duckdb`.
+* **The README's results block is generated.** The numbers at the top of the README
+  (headline answer, policy table, risk-model and forecast sentences) sit between two
+  markers and are rendered by `fxrisk readme` from the same data and functions as the
+  decision report, so a refresh cannot leave them behind. The README's prose outside
+  the block contains no numbers a refresh could make stale.
 * **Report order puts the answer first:** question and answer, then data and quality,
   exposure waterfall, forecast calibration, VaR/ES with coverage verdicts, stress,
   frontier and ratios, out-of-sample policy performance (with March/April 2020 and

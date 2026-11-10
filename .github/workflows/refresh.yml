@@ -1,7 +1,7 @@
 name: weekly refresh
 
 # Re-downloads every series, reruns the whole pipeline and opens a pull request with the
-# updated cache, reports and figures. Nothing is pushed to main directly: the PR runs the
+# updated cache, reports, figures and the README's results block. Nothing is pushed to main directly: the PR runs the
 # normal CI (lint, types, tests, every stage from the refreshed cache) and a person merges
 # it after reading reports/alerts.md and the decision report's summary (ADR-0014).
 #
@@ -61,6 +61,7 @@ jobs:
           uv run fxrisk hedge
           uv run fxrisk risk
           uv run fxrisk report
+          uv run fxrisk readme
 
       - name: Summarise for the pull request
         id: summary
@@ -105,3 +106,4 @@ jobs:
           add-paths: |
             data/cache/**
             reports/**
+            README.md
