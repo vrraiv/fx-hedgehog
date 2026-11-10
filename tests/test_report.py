@@ -236,7 +236,7 @@ def test_headline_answer_states_a_carry_cost_when_positive(tmp_path: Path) -> No
     assert "costs about USD 1.2m a year of carry" in decision.headline_answer(d)
 
 
-def test_sections_in_brief_order_and_figures_referenced(tmp_path: Path) -> None:
+def test_sections_answer_first_and_figures_referenced(tmp_path: Path) -> None:
     sections = decision.render_sections(_data(tmp_path))
     headings = [h for h, _ in sections]
     assert headings[0].startswith("The question")

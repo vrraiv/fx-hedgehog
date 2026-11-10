@@ -4,8 +4,9 @@
 
 ## Context
 
-The brief requires that USD crosses derived from Bank of Canada CAD quotes reconcile with
-FRED USD rates within a stated tolerance, failing loudly otherwise. The three sources fix
+USD crosses derived from Bank of Canada CAD quotes (and ECB EUR quotes) must reconcile
+with FRED USD rates within a stated tolerance, failing loudly otherwise: a unit or
+inversion error in any source would otherwise pass silently into every risk number. The three sources fix
 at different times (FRED noon NY; BoC daily average, or noon for the legacy series; ECB
 14:15 CET), so exact agreement is impossible and a tolerance has to be chosen.
 

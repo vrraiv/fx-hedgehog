@@ -1,4 +1,1 @@
-"""Report generation.
-
-Milestone 2 ships only the markdown table writer; the decision report is milestone 4.
-"""
+"""Report generation: the shared markdown table writer and the decision report."""

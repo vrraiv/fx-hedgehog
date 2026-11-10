@@ -4,9 +4,11 @@
 
 ## Context
 
-The brief asks for VaR and ES at 95/99% over 1, 10 and 21 days by historical simulation,
+The engine reports VaR and ES at 95/99% over 1, 10 and 21 days by historical simulation,
 parametric normal and Student-t, and a t-copula Monte Carlo, on sample, EWMA (0.94 and
-0.97) and Ledoit-Wolf covariances. Several details are open: estimation window, how to
+0.97) and Ledoit-Wolf covariances: a deliberately wide set, so that the choice of model
+is made by the coverage backtest (ADR-0010) rather than assumed. Several details
+remain: estimation window, how to
 reach multi-day horizons, where the tail index comes from, and how exposure enters.
 
 ## Decision
@@ -45,7 +47,7 @@ reach multi-day horizons, where the tail index comes from, and how exposure ente
 
 ## Consequences
 
-* Methods are comparable in one table; the report (milestone 4) will show the spread
-  across methods as a model-risk band rather than a single number.
+* Methods are comparable in one table; the decision report shows the spread across
+  methods as a model-risk band rather than a single number.
 * The Monte Carlo is the slowest component (about 30 seconds for the full table); the
   daily backtest therefore excludes it (ADR-0010).

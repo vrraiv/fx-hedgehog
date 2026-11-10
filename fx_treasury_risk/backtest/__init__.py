@@ -1,1 +1,1 @@
-"""Backtests: VaR coverage tests, ES tests, and (milestone 3) the hedge-policy backtest."""
+"""Backtests: VaR coverage tests, ES tests, and the walk-forward hedge-policy backtest."""

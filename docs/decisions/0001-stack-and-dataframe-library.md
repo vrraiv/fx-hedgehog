@@ -4,8 +4,9 @@
 
 ## Context
 
-The stack is fixed by the brief (Python 3.12, uv, ruff, pytest, mypy, DuckDB). Two
-choices were left open: the in-memory dataframe library and the CLI framework.
+The core stack is Python 3.12 with uv for environments, ruff, mypy and pytest for code
+quality, and DuckDB for storage (ADR-0002). Two choices remain: the in-memory dataframe
+library and the CLI framework.
 
 ## Decision
 

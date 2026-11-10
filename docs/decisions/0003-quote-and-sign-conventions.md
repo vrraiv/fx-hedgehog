@@ -16,9 +16,9 @@ logic in every formula.
 * Exposure sign: positive = long FCY (the business holds or will receive it). USD P&L over
   a horizon is `exposure_fcy * (S_T - S_0)`.
 * Tests enforce both: `test_registry.py` requires a quote convention on every FX series;
-  `test_sql_fx.py` checks the inversion against hand-built truth; the exposure module's
-  tests (milestone 2) will assert that a merchant receipt in EUR produces positive EUR
-  exposure.
+  `test_sql_fx.py` checks the inversion against hand-built truth; `test_sql_exposure.py`
+  walks a EUR sale through the exposure SQL and checks that the receivable is a positive
+  EUR exposure.
 
 ## Consequences
 
