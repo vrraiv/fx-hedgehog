@@ -37,7 +37,7 @@ testable against the configuration.
   from the global seed and the pair name, so editing one pair's volume does not change
   another pair's history.
 * **Regimes:** multiplicative volume shocks by date range; the 2020 collapse and rebound
-  are configured so the exposure forecast (milestone 3) faces a structural break.
+  are configured so the exposure forecast (ADR-0011) faces a structural break.
 
 ## Consequences
 

@@ -4,9 +4,10 @@
 
 ## Context
 
-Covered interest parity pricing (milestone 3) needs a short rate per currency at a one- to
-three-month tenor. The brief names FRED's OECD series and accepts monthly data with
-forward-fill. Probing on 2026-11-05 found:
+Covered interest parity pricing needs a short rate per currency at a one- to three-month
+tenor, from public sources with no registration. FRED's OECD series are the obvious
+starting point; they are monthly, so a forward-fill rule is needed. Probing on 2026-11-05
+found:
 
 * FRED carries OECD 3-month interbank rates (`IR3TIB01*`) for EUR, GBP, JPY, AUD, CHF, CAD
   and MXN, monthly. The EUR and GBP series last printed 2026-01 (ten months stale); the

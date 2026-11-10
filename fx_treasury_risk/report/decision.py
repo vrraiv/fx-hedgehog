@@ -36,6 +36,46 @@ POLICY_LABELS = {
     "full_hedge": "full hedge",
     "optimizer": "optimizer",
 }
+# Display names for identifiers that the stages store in machine-friendly form. Anything
+# not listed is printed as stored, so a new method or scenario never breaks the report.
+RISK_METHOD_LABELS = {
+    "historical": "historical simulation",
+    "parametric_normal": "normal",
+    "parametric_t": "Student-t",
+    "monte_carlo_t": "Monte Carlo, t copula",
+}
+COV_LABELS = {
+    "none": "",
+    "sample": "sample covariance",
+    "ledoit_wolf": "Ledoit-Wolf",
+    "ewma_0.94": "EWMA 0.94",
+    "ewma_0.97": "EWMA 0.97",
+}
+VAR_METHOD_LABELS = {
+    "historical": "historical simulation",
+    "normal_sample": "normal, sample covariance",
+    "normal_ewma": "normal, EWMA 0.94",
+    "t_ewma": "Student-t, EWMA 0.94",
+}
+SCENARIO_LABELS = {
+    "chf_depeg_2015": "CHF floor removed, Jan 2015",
+    "brexit_2016": "Brexit vote, Jun 2016",
+    "covid_2020": "Dash for dollars, Mar 2020",
+    "usd_surge_2022": "USD surge, Aug-Sep 2022",
+    "taper_tantrum_2013": "Taper tantrum, May-Aug 2013",
+    "usd_up_10": "USD +10% against all",
+    "em_selloff_15": "EM selloff (BRL, MXN -15%, INR -10%)",
+    "eur_down_10": "EUR -10%",
+    "jpy_up_10": "JPY +10%",
+}
+TOTAL_LABEL = "total (absolute values)"
+
+
+def _risk_label(label: str) -> str:
+    method, _, cov = label.partition(" / ")
+    m = RISK_METHOD_LABELS.get(method, method)
+    c = COV_LABELS.get(cov, cov)
+    return f"{m}, {c}" if c else m
 
 
 @dataclass
@@ -313,24 +353,106 @@ def _stress_month_table(d: ReportData) -> pd.DataFrame:
     return tbl.join(es).round(2).reset_index()
 
 
+HEDGING_COST = "hedging cost / yr (+ = cost)"
+SUMMARY_DECIMALS = {
+    "P&L vol / yr": 1,
+    "total P&L": 1,
+    HEDGING_COST: 1,
+    "max drawdown": 1,
+    "worst month": 1,
+    "share of months budget binds": 2,
+}
+
+
 def _summary_table(d: ReportData) -> pd.DataFrame:
+    """Backtest summary in USD m, with hedging cost as a cost.
+
+    The backtest stores carry and spread as P&L; the report uses one sign convention
+    throughout, positive = the hedges cost money.
+    """
     s = d.policy_summary.copy()
     out = pd.DataFrame(
         {
             "policy": s["policy"].map(POLICY_LABELS).fillna(s["policy"]),
-            "P&L vol (USD m / yr)": (s["daily_vol_annualized_usd"] / 1e6).round(1),
-            "total P&L (USD m)": (s["total_pnl_usd"] / 1e6).round(1),
-            "carry + spread / yr": (
-                (s["carry_per_year_usd"] + s["spread_per_year_usd"]) / 1e6
-            ).round(1),
-            "max drawdown": (s["max_drawdown_usd"] / 1e6).round(1),
-            "worst month": (s["worst_month_usd"] / 1e6).round(1),
+            "P&L vol / yr": s["daily_vol_annualized_usd"] / 1e6,
+            "total P&L": s["total_pnl_usd"] / 1e6,
+            HEDGING_COST: -(s["carry_per_year_usd"] + s["spread_per_year_usd"]) / 1e6,
+            "max drawdown": s["max_drawdown_usd"] / 1e6,
+            "worst month": s["worst_month_usd"] / 1e6,
             "months loss > budget": s["months_loss_gt_budget"].astype(int),
-            "share of months budget binds": s["share_months_binding"].round(2),
+            "share of months budget binds": s["share_months_binding"],
         }
     )
     order = {p: i for i, p in enumerate(POLICY_LABELS.values())}
     return out.sort_values("policy", key=lambda c: c.map(order)).reset_index(drop=True)
+
+
+def _waterfall_table(d: ReportData) -> pd.DataFrame:
+    w = d.waterfall.drop(columns="exposure_date").copy()
+    w["ccy"] = w["ccy"].where(~w["ccy"].str.startswith("TOTAL"), TOTAL_LABEL)
+    return w.rename(
+        columns={
+            "gross_usd_m": "gross",
+            "net_usd_m": "net",
+            "hedge_usd_m": "hedges",
+            "net_of_hedges_usd_m": "net of hedges",
+        }
+    )
+
+
+def _entity_table(d: ReportData) -> pd.DataFrame:
+    return d.entity_latest.rename(
+        columns={
+            "in_flight_m": "receivables in flight",
+            "balance_m": "cash balance",
+            "payable_m": "merchant payable",
+            "intercompany_m": "intercompany",
+            "net_m": "net",
+        }
+    )
+
+
+def _forecast_table(d: ReportData) -> pd.DataFrame:
+    return d.forecast_by_horizon.rename(
+        columns={
+            "horizon": "horizon (days)",
+            "pinball_pct": "pinball loss, % of exposure",
+            "mape_median_pct": "median abs. error, %",
+            "coverage_50": "50% interval coverage",
+            "coverage_80": "80% interval coverage",
+            "coverage_95": "95% interval coverage",
+            "skill_vs_naive": "skill vs naive",
+        }
+    )
+
+
+def _risk_table(d: ReportData) -> pd.DataFrame:
+    r = d.risk_21d.copy()
+    r["label"] = r["label"].map(_risk_label)
+    return r.rename(columns={"label": "model", "net_of_hedges": "net of hedges"})
+
+
+def _stress_table(d: ReportData) -> pd.DataFrame:
+    s = d.stress.copy()
+    s["scenario"] = s["scenario"].map(lambda x: SCENARIO_LABELS.get(x, x))
+    return s.rename(
+        columns={
+            "largest_move": "largest move",
+            "propagated": "others propagated",
+            "net_of_hedges": "net of hedges",
+        }
+    )
+
+
+def _reference_table(d: ReportData) -> pd.DataFrame:
+    r = d.reference
+    return pd.DataFrame(
+        {
+            "policy": r["policy"].map(POLICY_LABELS).fillna(r["policy"]),
+            "residual ES (USD m)": r["residual_es_usd"] / 1e6,
+            "expected cost (USD m / yr, + = cost)": r["annual_cost_usd"] / 1e6,
+        }
+    )
 
 
 def _by_year_table(d: ReportData) -> pd.DataFrame:
@@ -350,7 +472,6 @@ def _by_year_table(d: ReportData) -> pd.DataFrame:
 
 def _recommendation_table(d: ReportData) -> pd.DataFrame:
     r = d.recommendation.copy()
-    r["hedge_ratio"] = r["hedge_ratio"].round(2)
     return r[
         [
             "ccy",
@@ -377,19 +498,21 @@ def _var_table(d: ReportData) -> pd.DataFrame:
     v = d.var_backtest.copy()
     out = pd.DataFrame(
         {
-            "basis": v["basis"],
-            "method": v["method"],
-            "confidence": v["confidence"],
+            "model": v["method"].map(lambda m: VAR_METHOD_LABELS.get(m, m)),
+            "confidence": v["confidence"].map(lambda c: f"{c:.0%}"),
             "exceptions": v["n_exceptions"].astype(int),
-            "expected": v["expected_exceptions"].round(1),
-            "Kupiec p": v["kupiec_p"].round(2),
-            "Christoffersen p": v["christoffersen_p"].round(2),
+            "expected": v["expected_exceptions"],
+            "Kupiec p": v["kupiec_p"],
+            "Christoffersen p": v["christoffersen_p"],
             "traffic light": v["traffic_light"],
-            "AS Z2 p": v["z2_p"].round(2),
+            "Acerbi-Szekely Z2 p": v["z2_p"],
             "verdict": v["verdict"],
         }
     )
     return out
+
+
+VAR_DECIMALS = {"expected": 1, "Kupiec p": 2, "Christoffersen p": 2, "Acerbi-Szekely Z2 p": 2}
 
 
 def render_sections(d: ReportData) -> list[tuple[str, str]]:
@@ -410,7 +533,11 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
     )
     passing = d.var_backtest[d.var_backtest["verdict"] == "PASS"]
     pass_txt = (
-        "; ".join(f"{r.method} at {r.confidence:.0%}" for r in passing.itertuples()) or "none"
+        "; ".join(
+            f"{VAR_METHOD_LABELS.get(str(r.method), str(r.method))} at {_num(r.confidence):.0%}"
+            for r in passing.itertuples()
+        )
+        or "none"
     )
     total = d.waterfall[d.waterfall["ccy"].str.startswith("TOTAL")].iloc[0]
     wf = d.waterfall[~d.waterfall["ccy"].str.startswith("TOTAL")]
@@ -430,7 +557,16 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             "out of sample from 2015 to the present, including March 2020 and 2022?*\n\n"
             + headline_answer(d)
             + "\n\n"
-            + df_to_markdown(_recommendation_table(d))
+            + df_to_markdown(
+                _recommendation_table(d),
+                decimals={
+                    "forecast exposure (USD m)": 1,
+                    "hedge ratio": 2,
+                    "forward notional (USD m)": 1,
+                    "carry % / yr (+ = costs)": 2,
+                    "spread bp": 1,
+                },
+            )
             + "\n\nCarry is the annualized forward discount of the currency against USD "
             "(positive: selling the currency forward costs money; negative: it earns). The "
             "optimizer spends the budget where risk reduction is expensive and hedges "
@@ -472,14 +608,14 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             "forward in force was sized on the forecast for the policy's 21-day target date "
             "and runs until the next rebalance (ADR-0013; the history figure plots monthly "
             "averages for that reason).\n\n"
-            + df_to_markdown(d.waterfall.drop(columns="exposure_date").round(1))
+            + df_to_markdown(_waterfall_table(d), decimals=1)
             + "\n\n"
             + _fig(figs, "waterfall", "exposure waterfall")
             + "\n\n"
             + _fig(figs, "history", "exposure history")
             + "\n\nBy entity on the same date (USD m; the US parent's intercompany loans are "
             "the subsidiaries' intercompany liabilities):\n\n"
-            + df_to_markdown(d.entity_latest.round(1)),
+            + df_to_markdown(_entity_table(d), decimals=1),
         )
     )
 
@@ -492,7 +628,17 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             "on weekday, month-end and month-start position, month and trend, with AR(1) "
             "errors (ADR-0011). Rolling-origin evaluation over monthly origins from "
             f"{d.hcfg.oos_start.year - 1} against a seasonal-naive baseline:\n\n"
-            + df_to_markdown(d.forecast_by_horizon.round(2))
+            + df_to_markdown(
+                _forecast_table(d),
+                decimals={
+                    "pinball loss, % of exposure": 1,
+                    "median abs. error, %": 1,
+                    "50% interval coverage": 2,
+                    "80% interval coverage": 2,
+                    "95% interval coverage": 2,
+                    "skill vs naive": 2,
+                },
+            )
             + f"\n\nAt the policy horizon the model's skill against the naive is "
             f"{skill_21:.2f} (pinball loss reduced by {_pct(skill_21)}) and its nominal 95% "
             f"interval covers {_pct(cov95_21)} of outcomes. The intervals are therefore too "
@@ -501,7 +647,10 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             "coverage by horizon and quantile.\n\n"
             + _fig(figs, "calibration", "forecast calibration")
             + f"\n\nLatest {d.hcfg.horizon_days}-day-ahead forecast (currency units):\n\n"
-            + df_to_markdown(d.forecast_latest.round({"2.5%": 0, "median": 0, "97.5%": 0})),
+            + df_to_markdown(
+                d.forecast_latest.rename(columns={"target_date": "target date"}),
+                decimals={"2.5%": 0, "median": 0, "97.5%": 0},
+            ),
         )
     )
 
@@ -511,12 +660,13 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             f"Expected Shortfall at {d.hcfg.horizon_days} days / {d.hcfg.confidence:.0%} on "
             f"{d.as_of.date()}, USD m, for every method family in the engine, on the net "
             "exposure and on the exposure net of hedges in force:\n\n"
-            + df_to_markdown(d.risk_21d.round(2))
-            + "\n\nWhich of these to believe is decided by the one-day coverage backtest from "
-            f"{d.hcfg.oos_start.year} (Kupiec unconditional coverage, Christoffersen "
+            + df_to_markdown(_risk_table(d), decimals=1)
+            + "\n\nWhich of these to believe is decided by the one-day coverage backtest on "
+            f"the net exposure from {d.hcfg.oos_start.year} (Kupiec unconditional coverage, "
+            "Christoffersen "
             "independence, Basel traffic light, Acerbi-Szekely Z2 for ES). A verdict of PASS "
             f"needs every p-value at or above 0.05. Passing: {pass_txt}.\n\n"
-            + df_to_markdown(_var_table(d))
+            + df_to_markdown(_var_table(d), decimals=VAR_DECIMALS)
             + "\n\nThe optimizer therefore uses the Student-t model with EWMA(0.94) covariance "
             f"(tail index {float(h['nu']):.1f} on the latest window). Multi-day coverage is not "
             "tested formally because overlapping windows break the tests' independence "
@@ -532,7 +682,7 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             f"net exposure on {d.as_of.date()}, P&L in USD m. *Propagated* means the shock is "
             "given to the named currencies and the others move by their Gaussian conditional "
             "expectation; otherwise only the named currencies move.\n\n"
-            + df_to_markdown(d.stress.round(2)),
+            + df_to_markdown(_stress_table(d), decimals={"net": 1, "net of hedges": 1}),
         )
     )
 
@@ -543,12 +693,7 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             "year) for every ES budget from zero (full hedge) to the unhedged ES. "
             + frontier_txt
             + " Reference policies at today's exposures:\n\n"
-            + df_to_markdown(
-                d.reference.assign(
-                    residual_es_usd_m=(d.reference["residual_es_usd"] / 1e6).round(2),
-                    annual_cost_usd_m=(d.reference["annual_cost_usd"] / 1e6).round(2),
-                )[["policy", "residual_es_usd_m", "annual_cost_usd_m"]]
-            )
+            + df_to_markdown(_reference_table(d), decimals=2)
             + "\n\n"
             + _fig(figs, "frontier", "cost-risk frontier")
             + "\n\nThe optimizer is a convex programme (linear cost, ES of a linear book under "
@@ -576,7 +721,9 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             f"{d.hcfg.horizon_days}-day forecast; P&L marked on the actual daily exposure path "
             "with forward mark-to-market, carry accrual and spread (ADR-0013). No look-ahead: "
             "covariance, tail index, rates and forecasts use data up to the origin only.\n\n"
-            + df_to_markdown(_summary_table(d))
+            + df_to_markdown(_summary_table(d), decimals=SUMMARY_DECIMALS)
+            + "\n\nUSD m. Hedging cost is carry plus bid-ask spread per year, positive when "
+            "the hedges cost money, the same convention as the frontier above."
             + "\n\nMean optimizer hedge ratio over the backtest: "
             + ", ".join(f"{c} {v:.2f}" for c, v in d.ratios_mean.items())
             + ".\n\n"
@@ -585,11 +732,14 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             + _fig(figs, "ratios", "optimizer hedge ratios by month")
             + "\n\n**March 2020 and 2022.** Monthly P&L by policy in the four stress months, "
             "USD m:\n\n"
-            + df_to_markdown(_stress_month_table(d))
+            + df_to_markdown(_stress_month_table(d), decimals=1)
             + "\n\n"
             + months_txt.strip()
             + "\n\n**By year** (total P&L, USD m):\n\n"
-            + df_to_markdown(_by_year_table(d))
+            + df_to_markdown(
+                _by_year_table(d),
+                decimals={label: 1 for label in POLICY_LABELS.values()},
+            )
             + "\n\n"
             + _fig(figs, "monthly", "monthly P&L distribution by policy"),
         )

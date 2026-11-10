@@ -6,8 +6,8 @@
 
 Choose hedge ratios ``h_c`` in [0, 1] per currency to minimise expected hedging cost
 subject to the portfolio Expected Shortfall at 21 days / 99% staying within a budget,
-with an optional turnover penalty and a minimum ticket. The brief allows
-``scipy.optimize`` or ``cvxpy`` and asks for the choice to be justified.
+with an optional turnover penalty and a minimum ticket. The two natural Python tools are
+``scipy.optimize`` and ``cvxpy``.
 
 ## Decision
 

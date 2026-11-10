@@ -4,8 +4,10 @@
 
 ## Context
 
-The brief requires DuckDB for storage and aggregation, with no SQL strings buried in
-Python. The author wants to learn idiomatic SQL from the repository.
+Exposure aggregation is set-based work (running sums, as-of joins, pivots) that reads
+more clearly in SQL than in pandas, and a treasury team's analysts are more likely to
+read SQL than Python. The SQL should therefore live in files a reader can open on their
+own, not in strings buried in Python, and run on an embedded engine with no server.
 
 ## Decision
 

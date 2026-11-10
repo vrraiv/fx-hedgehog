@@ -102,7 +102,7 @@ payoff `notional * (S_T - F)` at maturity. `tests/test_policy.py` checks that id
   for a premium. Pricing options needs an implied-volatility surface per currency, which
   is not available from public sources at daily frequency for ten currencies, and adds a
   non-linear P&L that the ES budget would have to be computed on by simulation. The
-  demonstration's question (minimum carry for a fixed ES) is well posed with forwards
+  report's question (minimum carry for a fixed ES) is well posed with forwards
   alone; options are a backlog item.
 * **Cross-currency basis.** Post-2008, CIP deviates by a basis of a few to tens of basis
   points for major currencies. Public daily basis data is not available; the forward

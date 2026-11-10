@@ -4,8 +4,8 @@
 
 ## Context
 
-Milestone 4 adds the deliverable a treasurer reads (`reports/decision_report.md`), a way
-to run the pipeline on a schedule, and a way to keep the committed data current. Three
+The pipeline needs a deliverable a treasurer reads (`reports/decision_report.md`), a way
+to run on a schedule, and a way to keep the committed data current. Three
 questions: should the report recompute anything; how should the pipeline be scheduled in
 production versus in this repository; and how should a data refresh reach `main`.
 
@@ -21,7 +21,7 @@ production versus in this repository; and how should a data refresh reach `main`
   The quality section re-reads `reports/quality_report.md` rather than re-running the
   checks. Consequence: the report can never disagree with the stage reports, and a reader
   can trace every number to a table in `data/fxrisk.duckdb`.
-* **Report order follows the brief:** question and answer first, then data and quality,
+* **Report order puts the answer first:** question and answer, then data and quality,
   exposure waterfall, forecast calibration, VaR/ES with coverage verdicts, stress,
   frontier and ratios, out-of-sample policy performance (with March/April 2020 and
   September/October 2022 broken out), and a closing "what this model does not know"
@@ -44,7 +44,7 @@ production versus in this repository; and how should a data refresh reach `main`
 * **Figures in the report are static PNGs** drawn with matplotlib, committed with the
   report so that the GitHub rendering is self-contained. The two new ones use a single
   blue ramp (gross, net, net of hedges are one quantity at three stages of netting), the
-  policy figures keep the four fixed policy colours from milestone 3.
+  policy figures keep the four fixed policy colours used throughout the backtest.
 
 ## Consequences
 

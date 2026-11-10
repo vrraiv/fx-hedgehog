@@ -13,8 +13,9 @@ without tooling.
 * **Format:** one CSV per series (`date,value`), under `data/cache/<source>/<id>.csv`,
   plus `data/cache/manifest.json` recording for each series the source URL, UTC retrieval
   timestamp, first/last date, row count and SHA-256 of the file. Values are written with
-  10 significant digits. Total size is 4.5 MB for 78 series over 2010-2026; CSV diffs
-  are readable in pull requests, which matters for the weekly refresh job (milestone 4).
+  10 significant digits. Total size is about 4.5 MB for 77 series over 2010-2026; CSV
+  diffs are readable in pull requests, which matters for the weekly refresh job
+  (ADR-0014).
 * **Cache-first:** `fxrisk fetch` downloads only series missing from the cache;
   `--refresh` re-downloads everything. A failed download never overwrites a cached file.
 * **Offline guard:** `FXRISK_OFFLINE=1` makes any network attempt raise; CI sets it.

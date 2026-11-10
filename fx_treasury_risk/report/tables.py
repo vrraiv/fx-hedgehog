@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from datetime import date, datetime
 from pathlib import Path
 
@@ -25,13 +26,45 @@ def fmt(v: object) -> str:
     return str(v)
 
 
-def df_to_markdown(df: pd.DataFrame, index: bool = False) -> str:
-    """Render a frame as a GitHub-flavoured markdown table."""
+def fmt_fixed(v: object, decimals: int) -> str:
+    """Fixed-decimal formatting of floats with thousands separators.
+
+    ``-0.0`` prints as ``0.0``; integers and non-numbers fall back to :func:`fmt`, so a
+    count in a fixed-decimal table still prints as a count.
+    """
+    if not isinstance(v, float):
+        return fmt(v)
+    if math.isnan(v):
+        return ""
+    text = f"{v:,.{decimals}f}"
+    return text[1:] if text.startswith("-") and float(text.replace(",", "")) == 0 else text
+
+
+def df_to_markdown(
+    df: pd.DataFrame,
+    index: bool = False,
+    decimals: int | Mapping[str, int] | None = None,
+) -> str:
+    """Render a frame as a GitHub-flavoured markdown table.
+
+    ``decimals`` fixes the number of decimals for numeric cells: one value for every
+    column, or a mapping from column name to decimals (other columns use :func:`fmt`).
+    Without it, numbers are printed compactly with trailing zeros stripped.
+    """
     frame = df.reset_index() if index else df
     cols = [str(c) for c in frame.columns]
+    if decimals is None:
+        per_col: list[int | None] = [None] * len(cols)
+    elif isinstance(decimals, int):
+        per_col = [decimals] * len(cols)
+    else:
+        per_col = [decimals.get(c) for c in cols]
     lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
     for row in frame.itertuples(index=False):
-        lines.append("| " + " | ".join(fmt(v) for v in row) + " |")
+        cells = [
+            fmt(v) if d is None else fmt_fixed(v, d) for v, d in zip(row, per_col, strict=True)
+        ]
+        lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
 
 

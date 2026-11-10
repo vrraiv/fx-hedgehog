@@ -54,7 +54,7 @@ QUALIFY notional_fcy IS NOT NULL;      -- the first month has no history to hedg
 
 CREATE OR REPLACE VIEW hedges_all AS
 -- Positions from every source. Legacy rows are used only for months where the optimizer
--- has written nothing, so milestone 3 can take over month by month.
+-- has written nothing, so the optimizer takes over month by month.
 SELECT trade_date, maturity_date, entity, ccy, notional_fcy, source FROM hedge_positions
 UNION ALL
 SELECT l.trade_date, l.maturity_date, l.entity, l.ccy, l.notional_fcy, l.source

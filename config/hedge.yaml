@@ -1,4 +1,4 @@
-# Hedge policy configuration (milestone 3). Round numbers, all stylized.
+# Hedge policy configuration. Round numbers, all stylized.
 
 # Risk budget: the 21-day 99% Expected Shortfall of the hedged book may not exceed this.
 # Fixed in USD because that is how a treasury risk appetite is written; as the synthetic

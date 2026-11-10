@@ -5,9 +5,10 @@
 ## Context
 
 The hedge policy needs the net exposure per currency one month ahead, with honest
-uncertainty, every month from 2015. The brief asks for a seasonal-naive baseline and a
-structural / SARIMA / ETS model with explicit prediction intervals, evaluated by
-rolling-origin backtests with pinball loss and coverage at 50/80/95.
+uncertainty, every month from 2015. A forecast is only worth using if it beats a
+seasonal-naive baseline out of sample, so any model needs explicit prediction intervals
+and a rolling-origin evaluation (pinball loss, coverage at 50/80/95) against that
+baseline.
 
 The exposure series has three deterministic rhythms (weekly payouts, the month-end fee
 sweep, annual retail seasonality), an 8% growth trend, a regime break in 2020, and

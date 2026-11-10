@@ -1,8 +1,8 @@
 # Methodology
 
 This document fixes the conventions every module uses. When code and this document
-disagree, the code is wrong. Sections marked *(milestone N)* are filled in as that
-milestone lands.
+disagree, the code is wrong. Sections follow the pipeline: data, flows, exposure, risk,
+forecasting, hedging, backtesting, reporting.
 
 ## 1. Conventions
 
@@ -46,7 +46,7 @@ milestone lands.
   days so that every daily return spans one NY trading day.
 * Horizons are counted in trading days: 1, 10 and 21 (one month). A year has 252.
 
-## 2. Data layer *(milestone 1)*
+## 2. Data layer
 
 ### 2.1 Sources and precedence
 
@@ -101,7 +101,7 @@ reconciliation, master-table completeness, calendar gaps, return outliers (|r| >
 EWMA sigma, WARN only, for human review) and a plausibility range on rates. Failures write
 `reports/alerts.md` and return exit code 1.
 
-## 3. Synthetic flows *(milestone 2)*
+## 3. Synthetic flows
 
 Configuration: `config/flows.yaml`. Generator: `fx_treasury_risk/flows/generator.py`.
 Design rationale: ADR-0008.
@@ -150,7 +150,7 @@ cumulative volume), the weekly and annual profiles are recovered from the output
 level matches the configured volume, and the generator is deterministic and
 pair-independent.
 
-## 4. Exposure aggregation *(milestone 2)*
+## 4. Exposure aggregation
 
 All aggregation is SQL: `sql/060_flows.sql` to `sql/090_exposure_group.sql`.
 
@@ -192,7 +192,7 @@ forward 50% of last month's average net exposure in each non-USD currency for on
 `exposure_group_fx` is group net exposure by currency on the FX calendar, in currency
 units and USD, with and without hedges. The risk engine reads only this table.
 
-## 5. Risk engine *(milestone 2)*
+## 5. Risk engine
 
 Code: `fx_treasury_risk/risk/`. Choices: ADR-0009.
 
@@ -210,7 +210,7 @@ Code: `fx_treasury_risk/risk/`. Choices: ADR-0009.
   unnamed currencies, reported with and without propagation.
 * **Output:** `risk_results` and `stress_results` in DuckDB; `reports/risk_tables.md`.
 
-## 6. Exposure forecasting *(milestone 3)*
+## 6. Exposure forecasting
 
 Code: `fx_treasury_risk/forecast/`. Choices and evidence: ADR-0011. Output:
 `reports/forecast_eval.md` and the three figures it embeds.
@@ -234,7 +234,7 @@ Code: `fx_treasury_risk/forecast/`. Choices and evidence: ADR-0011. Output:
 * **Result:** skill about 0.8 at every horizon; median MAPE 5-7%; coverage 0.86 at
   nominal 0.95, i.e. intervals somewhat too narrow (stated in the report).
 
-## 7. Hedge optimization *(milestone 3)*
+## 7. Hedge optimization
 
 Code: `fx_treasury_risk/hedge/`. Instrument mechanics: `docs/hedging-primer.md`.
 Formulation and solver: ADR-0012. Output: `reports/hedge_recommendation.md` and
@@ -254,9 +254,9 @@ Formulation and solver: ADR-0012. Output: `reports/hedge_recommendation.md` and
   optimal (residual ES, annualized cost) pair. Unhedged, legacy 50% and full hedge are
   plotted for reference.
 
-## 8. Backtesting *(milestones 2-3)*
+## 8. Backtesting
 
-### 8.1 VaR and ES coverage *(milestone 2)*
+### 8.1 VaR and ES coverage
 
 Code: `fx_treasury_risk/backtest/coverage.py`, `var_backtest.py`. Design: ADR-0010.
 Daily one-day forecasts from 2015-01-02 along the actual exposure path for historical
@@ -264,7 +264,7 @@ simulation, normal (sample and EWMA covariance) and Student-t (EWMA) models. Tes
 Kupiec, Christoffersen, conditional coverage, Basel traffic light, Acerbi-Szekely Z1 and
 Z2 with simulated p-values. Output: `var_backtest_results`; `reports/var_backtest.md`.
 
-### 8.2 Hedge-policy backtest *(milestone 3)*
+### 8.2 Hedge-policy backtest
 
 Code: `fx_treasury_risk/backtest/policy.py`. Design: ADR-0013. Output:
 `reports/policy_backtest.md` and three figures.
@@ -277,7 +277,7 @@ annualized and monthly), total P&L, carry and spread per year, maximum drawdown,
 month, months with a loss beyond the budget, share of months in which the budget bound;
 overall, by year, and for March/April 2020 and September/October 2022.
 
-## 9. Reporting and operations *(milestone 4)*
+## 9. Reporting and operations
 
 Code: `fx_treasury_risk/report/decision.py`, `report/plots.py`, `sql/110_report_views.sql`,
 `dags/fxrisk_daily.py`, `.github/workflows/refresh.yml`. Design: ADR-0014.
