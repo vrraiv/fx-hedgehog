@@ -2,7 +2,7 @@
 
 ## Summary
 
-Generated 2026-11-10 13:43 UTC from market data retrieved 2026-11-06 to 2026-11-10; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, averaged over the trading days of 2026-11.
+Generated 2026-11-10 17:04 UTC from market data retrieved 2026-11-06 to 2026-11-10; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, averaged over the trading days of 2026-11.
 
 ## The question and the answer
 
@@ -37,7 +37,7 @@ Market data: 8 checks on 2026-11-06 to 2026-11-10 retrievals, overall **WARN** (
 | reconciliation | PASS | all 20 currency/source pairs within tolerance |
 | master_completeness | PASS | 0 NULL cells across 10 currencies; 1 cells filled from BoC/ECB |
 | calendar | PASS | no gaps longer than 6 calendar days |
-| return_outliers | WARN | 33 daily moves beyond 6 EWMA sigma (review, not necessarily errors) |
+| return_outliers | WARN | 33 daily moves beyond 6 EWMA sigma: 30 confirmed by every other source, 3 by some, 0 by none (review, not necessarily errors) |
 | rates_range | PASS | all 11 rate series within [-2.0, 40.0] percent |
 
 ## Exposure waterfall
