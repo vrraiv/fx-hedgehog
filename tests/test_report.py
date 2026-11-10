@@ -409,6 +409,9 @@ def test_headline_states_var_exceedances_and_significance(tmp_path: Path) -> Non
     )
     text = decision.headline_answer(d)
     assert "ex-ante 99% VaR in 2 of 142 months, against about 1.4 expected" in text
+    assert "too many" not in text
+    d.policy_summary["months_loss_gt_var"] = [12, 3, 70, 5]
+    assert "too many (binomial p = 0.015)" in decision.headline_answer(d)
     assert "USD 14.2m lead over a full hedge is not statistically distinguishable" in text
     assert "USD 39.8m more carry net of spread" in text and "lost USD 25.6m" in text
     table = decision._summary_table(d)

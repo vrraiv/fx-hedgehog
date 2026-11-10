@@ -19,6 +19,7 @@ from typing import SupportsFloat, cast
 
 import duckdb
 import pandas as pd
+from scipy import stats
 
 from fx_treasury_risk import __version__, config, db
 from fx_treasury_risk.backtest.var_backtest import method_for_ewma
@@ -359,10 +360,18 @@ def _var_exceedance_text(d: ReportData, opt: pd.Series) -> str:
     expected = n * (1 - d.hcfg.confidence)
     if "months_loss_gt_var" in opt.index:
         k = int(opt["months_loss_gt_var"])
-        return (
+        text = (
             f"Its monthly loss exceeded its own ex-ante {_pct(d.hcfg.confidence)} VaR in {k} of "
-            f"{n} months, against about {expected:.1f} expected if the risk model is right."
+            f"{n} months, against about {expected:.1f} expected if the risk model is right"
         )
+        p = float(stats.binom.sf(k - 1, n, 1 - d.hcfg.confidence)) if k > 0 else 1.0
+        if p < 0.05:
+            return (
+                text + f": too many (binomial p = {p:.3f}). The monthly VaR covers the hedged "
+                "forecast exposure only, so forecast error and intra-month exposure swings "
+                "add risk it does not count."
+            )
+        return text + f" (binomial p = {p:.2f})."
     k = int(opt["months_loss_gt_budget"])
     return f"{k} of {n} months lost more than the budget."
 
