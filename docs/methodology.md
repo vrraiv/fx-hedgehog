@@ -278,8 +278,11 @@ covers; realised P&L from the actual
 exposure path, forward mark-to-market, carry and spread. Policies: unhedged, legacy 50%,
 full hedge, optimizer under a fixed USD 4m ES budget. Metrics: P&L volatility (daily
 annualized and monthly), total P&L, carry and spread per year, maximum drawdown, worst
-month, months with a loss beyond the budget, share of months in which the budget bound;
-overall, by year, and for March/April 2020 and September/October 2022.
+month, months with a loss beyond the budget (a loss frequency) and beyond the policy's own
+ex-ante 99% VaR (the model test), share of months in which the budget bound; overall, by
+year, and for March/April 2020 and September/October 2022. The optimizer's P&L lead over
+each other policy is tested for a zero mean with a Newey-West t-statistic and split into
+carry plus spread (known at dealing) and spot (`policy_comparison`).
 
 ## 9. Reporting and operations
 

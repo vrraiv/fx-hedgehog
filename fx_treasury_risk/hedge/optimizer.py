@@ -59,6 +59,11 @@ class HedgeProblem:
         return es_multiplier(self.nu, self.confidence)
 
     @property
+    def k_var(self) -> float:
+        """VaR per unit of standard deviation for the variance-matched Student-t."""
+        return float(np.sqrt((self.nu - 2) / self.nu) * stats.t.ppf(self.confidence, self.nu))
+
+    @property
     def cov_horizon(self) -> np.ndarray:
         """Covariance of horizon log returns (sqrt-time scaling)."""
         return self.cov_daily * self.horizon_days
@@ -67,6 +72,11 @@ class HedgeProblem:
         """ES of the hedged book in USD for hedge ratios ``h``."""
         w = self.exposure_usd * (1 - h)
         return float(self.k_es * np.sqrt(max(w @ self.cov_horizon @ w, 0.0)))
+
+    def residual_var(self, h: np.ndarray) -> float:
+        """VaR of the hedged book in USD for hedge ratios ``h``."""
+        w = self.exposure_usd * (1 - h)
+        return float(self.k_var * np.sqrt(max(w @ self.cov_horizon @ w, 0.0)))
 
     def carry_cost(self, h: np.ndarray) -> float:
         """Expected carry cost over one tenor, USD (positive = cost)."""

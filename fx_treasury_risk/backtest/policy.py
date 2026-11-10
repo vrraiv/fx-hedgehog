@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 
 from fx_treasury_risk import config, db
+from fx_treasury_risk.backtest import coverage
 from fx_treasury_risk.hedge import optimizer as opt
 from fx_treasury_risk.hedge import plots
 from fx_treasury_risk.hedge.config import HedgeConfig, load_hedge_config
@@ -230,6 +231,7 @@ def run_policy_backtest(
                         "origin": origin,
                         "policy": policy,
                         "ex_ante_es_usd": prob.residual_es(h),
+                        "ex_ante_var_usd": prob.residual_var(h),
                         "unhedged_es_usd": prob.residual_es(np.zeros(k)),
                         "carry_cost_usd": prob.carry_cost(h),
                         "spread_cost_usd": spread_cost,
@@ -247,7 +249,9 @@ def run_policy_backtest(
         monthly = _monthly(daily, dec)
         summary = _summary(daily, monthly, hcfg.es_budget_usd)
         by_year = _by_year(monthly, hcfg.es_budget_usd)
+        comparison = compare_policies(monthly) if "optimizer" in hcfg.policies else pd.DataFrame()
         for name, frame in (
+            ("policy_comparison", comparison),
             ("policy_backtest_daily", daily),
             ("policy_backtest_monthly", monthly),
             ("policy_backtest_summary", summary),
@@ -258,7 +262,7 @@ def run_policy_backtest(
             con.execute(f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM tmp_df")
             con.unregister("tmp_df")
         _store_optimizer_positions(con, dec, ccys)
-        _write_outputs(paths, hcfg, daily, monthly, summary, by_year, dec, ccys)
+        _write_outputs(paths, hcfg, daily, monthly, summary, by_year, dec, ccys, comparison)
     finally:
         con.close()
     return {
@@ -267,12 +271,20 @@ def run_policy_backtest(
         "summary": summary,
         "by_year": by_year,
         "decisions": dec,
+        "comparison": comparison,
     }
 
 
 def _monthly(daily: pd.DataFrame, dec: pd.DataFrame) -> pd.DataFrame:
     m = daily.groupby(["policy", "rebalance"], as_index=False)[PNL_COLS].sum()
-    keep = ["policy", "rebalance", "ex_ante_es_usd", "unhedged_es_usd", "binding"]
+    keep = [
+        "policy",
+        "rebalance",
+        "ex_ante_es_usd",
+        "ex_ante_var_usd",
+        "unhedged_es_usd",
+        "binding",
+    ]
     return m.merge(dec[keep], on=["policy", "rebalance"])
 
 
@@ -304,9 +316,51 @@ def _summary(daily: pd.DataFrame, monthly: pd.DataFrame, budget: float) -> pd.Da
                 "max_drawdown_usd": max_drawdown(g["pnl_total"].to_numpy(dtype=float)),
                 "worst_month_usd": float(m["pnl_total"].min()),
                 "months_loss_gt_budget": int((m["pnl_total"] < -budget).sum()),
+                "months_loss_gt_var": int((m["pnl_total"] < -m["ex_ante_var_usd"]).sum()),
                 "n_months": len(m),
                 "mean_ex_ante_es_usd": float(m["ex_ante_es_usd"].mean()),
                 "share_months_binding": float(m["binding"].mean()),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def compare_policies(
+    monthly: pd.DataFrame, policy: str = "optimizer", others: tuple[str, ...] | None = None
+) -> pd.DataFrame:
+    """Test whether ``policy`` out-earns each other policy by more than chance.
+
+    Tests the mean monthly P&L difference with a Newey-West t-statistic (the
+    Diebold-Mariano form), and splits the difference into carry plus spread, which is
+    known when the forwards are dealt, and spot (exposure and hedge revaluation), which
+    is not. Months overlap in nothing, but volatility clusters, hence the long-run variance.
+    """
+    m = monthly.assign(
+        known=monthly["pnl_carry"] + monthly["pnl_spread"],
+        spot=monthly["pnl_unhedged"] + monthly["pnl_hedge_mtm"],
+    )
+    wide = m.pivot(index="rebalance", columns="policy", values=["pnl_total", "known", "spot"])
+    names = [str(p) for p in wide["pnl_total"].columns]
+    others = others or tuple(p for p in names if p != policy)
+    rows = []
+    for other in others:
+        d = (wide["pnl_total"][policy] - wide["pnl_total"][other]).to_numpy(dtype=float)
+        spot = (wide["spot"][policy] - wide["spot"][other]).to_numpy(dtype=float)
+        known = (wide["known"][policy] - wide["known"][other]).to_numpy(dtype=float)
+        t, p = coverage.diebold_mariano(d)
+        _, p_spot = coverage.diebold_mariano(spot)
+        rows.append(
+            {
+                "policy": policy,
+                "versus": other,
+                "n_months": len(d),
+                "total_diff_usd": float(d.sum()),
+                "mean_monthly_diff_usd": float(d.mean()),
+                "t_stat": t,
+                "p_value": p,
+                "carry_spread_diff_usd": float(known.sum()),
+                "spot_diff_usd": float(spot.sum()),
+                "spot_p_value": p_spot,
             }
         )
     return pd.DataFrame(rows)
@@ -356,6 +410,49 @@ def _store_optimizer_positions(
     log.info("stored %d optimizer hedge positions; exposure_group_fx rebuilt", len(rows))
 
 
+SUMMARY_NOTE = (
+    "months_loss_gt_budget counts months that lost more than the ES budget: a plain loss "
+    "frequency, comparable across policies, not a model test (a 99% ES is exceeded in well "
+    "under 1% of months even by a correct model, and only the optimizer is held to the "
+    "budget). months_loss_gt_var is the model test: months whose loss exceeded the policy's "
+    "own ex-ante 99% VaR, about 1% of months if the model is right. A full hedge of the "
+    "forecast has zero ex-ante VaR, so every losing month counts: its risk is all "
+    "forecast error, which the model does not see."
+)
+
+
+def _comparison_md(comparison: pd.DataFrame) -> str:
+    if comparison.empty:
+        return "The optimizer was not run."
+    c = comparison.copy()
+    for col in (
+        "total_diff_usd",
+        "mean_monthly_diff_usd",
+        "carry_spread_diff_usd",
+        "spot_diff_usd",
+    ):
+        c[col] = c[col] / 1e6
+    note = (
+        "Monthly P&L of the optimizer minus each other policy. t and p test that the mean "
+        "difference is zero (Newey-West long-run variance). carry_spread_diff is known when "
+        "the forwards are dealt; spot_diff is the result of the currency risk left open and "
+        "is what decides whether the carry was worth taking."
+    )
+    body = df_to_markdown(
+        c.drop(columns=["policy"]),
+        decimals={
+            "total_diff_usd": 1,
+            "mean_monthly_diff_usd": 3,
+            "t_stat": 2,
+            "p_value": 2,
+            "carry_spread_diff_usd": 1,
+            "spot_diff_usd": 1,
+            "spot_p_value": 2,
+        },
+    )
+    return body + "\n\n" + note
+
+
 def _write_outputs(
     paths: config.Paths,
     hcfg: HedgeConfig,
@@ -365,6 +462,7 @@ def _write_outputs(
     by_year: pd.DataFrame,
     dec: pd.DataFrame,
     ccys: list[str],
+    comparison: pd.DataFrame,
 ) -> None:
     figs = paths.figures_dir
     plots.cumulative_pnl_plot(daily, figs / "policy_cumulative_pnl.png")
@@ -382,8 +480,8 @@ def _write_outputs(
     ep = monthly.copy()
     ep["month"] = pd.DatetimeIndex(ep["rebalance"]).strftime("%Y-%m")
     ep = ep[ep["month"].isin(["2020-03", "2020-04", "2022-09", "2022-10"])]
-    ep = ep[["policy", "month", *PNL_COLS, "ex_ante_es_usd"]].copy()
-    for c in [*PNL_COLS, "ex_ante_es_usd"]:
+    ep = ep[["policy", "month", *PNL_COLS, "ex_ante_var_usd", "ex_ante_es_usd"]].copy()
+    for c in [*PNL_COLS, "ex_ante_var_usd", "ex_ante_es_usd"]:
         ep[c] = (ep[c] / 1e6).round(3)
 
     by = by_year.copy()
@@ -406,7 +504,8 @@ def _write_outputs(
                 "on the notional dealt. P&L is the FX P&L of the group net exposure plus hedge "
                 "mark-to-market, carry and spread; operating P&L is excluded.",
             ),
-            ("Summary by policy (USD m)", df_to_markdown(s)),
+            ("Summary by policy (USD m)", df_to_markdown(s) + "\n\n" + SUMMARY_NOTE),
+            ("Is the optimizer's lead significant? (USD m)", _comparison_md(comparison)),
             (
                 "Optimizer hedge ratios: mean over the backtest and at the last rebalance",
                 df_to_markdown(ratio_table, index=True),

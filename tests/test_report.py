@@ -391,3 +391,26 @@ def test_model_choice_text_reports_the_selection(tmp_path: Path) -> None:
     assert "The configuration uses the Student-t, EWMA 0.94 model, not the selected" in (
         decision._model_choice_text(d)
     )
+
+
+def test_headline_states_var_exceedances_and_significance(tmp_path: Path) -> None:
+    d = _data(tmp_path)
+    d.policy_summary["months_loss_gt_var"] = [12, 3, 70, 2]
+    d.policy_comparison = pd.DataFrame(
+        {
+            "policy": ["optimizer"],
+            "versus": ["full_hedge"],
+            "n_months": [142],
+            "total_diff_usd": [14.2e6],
+            "p_value": [0.34],
+            "carry_spread_diff_usd": [39.8e6],
+            "spot_diff_usd": [-25.6e6],
+        }
+    )
+    text = decision.headline_answer(d)
+    assert "ex-ante 99% VaR in 2 of 142 months, against about 1.4 expected" in text
+    assert "USD 14.2m lead over a full hedge is not statistically distinguishable" in text
+    assert "USD 39.8m more carry net of spread" in text and "lost USD 25.6m" in text
+    table = decision._summary_table(d)
+    assert "months losing > USD 4m" in table.columns
+    assert "months loss > ex-ante VaR" in table.columns

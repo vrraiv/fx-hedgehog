@@ -108,6 +108,7 @@ class ReportData:
     ratios_mean: pd.Series
     figures: dict[str, Path] = field(default_factory=dict)
     var_selection: pd.DataFrame = field(default_factory=pd.DataFrame)  # 2012-2014 ranking
+    policy_comparison: pd.DataFrame = field(default_factory=pd.DataFrame)  # optimizer vs rest
 
 
 # ----------------------------------------------------------------------------- loading
@@ -225,6 +226,11 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         pm["month"] = pd.DatetimeIndex(pm["rebalance"]).strftime("%Y-%m")
         policy_months = pm[pm["month"].isin(STRESS_MONTHS)]
         policy_by_year = _read(con, "policy_backtest_by_year")
+        policy_comparison = (
+            _read(con, "policy_comparison")
+            if _table_exists(con, "policy_comparison")
+            else pd.DataFrame()
+        )
         dec = _read(con, "policy_decisions")
         dec = dec[dec["policy"] == "optimizer"]
         ratio_cols = [c for c in dec.columns if c.startswith("h_")]
@@ -257,6 +263,7 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         policy_by_year=policy_by_year,
         ratios_mean=ratios_mean,
         var_selection=var_selection,
+        policy_comparison=policy_comparison,
     )
 
 
@@ -341,10 +348,42 @@ def headline_answer(d: ReportData) -> str:
         f"{_m(fh['daily_vol_annualized_usd'])}m for a full hedge; its total P&L is USD "
         f"{_m(opt['total_pnl_usd'])}m ({_m(unh['total_pnl_usd'])}m unhedged, "
         f"{_m(fh['total_pnl_usd'])}m full hedge), its maximum drawdown USD "
-        f"{_m(opt['max_drawdown_usd'])}m ({_m(unh['max_drawdown_usd'])}m unhedged), and "
-        f"{int(opt['months_loss_gt_budget'])} of {int(opt['n_months'])} months lost more than "
-        f"the budget ({int(unh['months_loss_gt_budget'])} unhedged, "
-        f"{int(fh['months_loss_gt_budget'])} full hedge)."
+        f"{_m(opt['max_drawdown_usd'])}m ({_m(unh['max_drawdown_usd'])}m unhedged). "
+        + _var_exceedance_text(d, opt)
+        + _significance_text(d)
+    )
+
+
+def _var_exceedance_text(d: ReportData, opt: pd.Series) -> str:
+    n = int(opt["n_months"])
+    expected = n * (1 - d.hcfg.confidence)
+    if "months_loss_gt_var" in opt.index:
+        k = int(opt["months_loss_gt_var"])
+        return (
+            f"Its monthly loss exceeded its own ex-ante {_pct(d.hcfg.confidence)} VaR in {k} of "
+            f"{n} months, against about {expected:.1f} expected if the risk model is right."
+        )
+    k = int(opt["months_loss_gt_budget"])
+    return f"{k} of {n} months lost more than the budget."
+
+
+def _significance_text(d: ReportData) -> str:
+    """Whether the optimizer's lead over a full hedge is more than luck, and what it is made of."""
+    c = d.policy_comparison
+    row = c[c["versus"] == "full_hedge"] if not c.empty else c
+    if row.empty:
+        return ""
+    r = row.iloc[0]
+    diff, p = _num(r["total_diff_usd"]), _num(r["p_value"])
+    known, spot = _num(r["carry_spread_diff_usd"]), _num(r["spot_diff_usd"])
+    lead = "lead over" if diff >= 0 else "shortfall against"
+    verdict = "is not statistically distinguishable from zero" if p >= 0.05 else "is significant"
+    spot_txt = f"lost USD {-spot / 1e6:.1f}m" if spot < 0 else f"gained USD {spot / 1e6:.1f}m"
+    return (
+        f" Its USD {abs(diff) / 1e6:.1f}m {lead} a full hedge {verdict} over "
+        f"{int(r['n_months'])} months (p = {p:.2f}): it collected USD {known / 1e6:.1f}m more "
+        f"carry net of spread, which is known when the forwards are dealt, and {spot_txt} "
+        "on the currency risk it left open, which is not."
     )
 
 
@@ -389,10 +428,14 @@ def _summary_table(d: ReportData) -> pd.DataFrame:
             HEDGING_COST: -(s["carry_per_year_usd"] + s["spread_per_year_usd"]) / 1e6,
             "max drawdown": s["max_drawdown_usd"] / 1e6,
             "worst month": s["worst_month_usd"] / 1e6,
-            "months loss > budget": s["months_loss_gt_budget"].astype(int),
+            f"months losing > USD {d.hcfg.es_budget_usd / 1e6:g}m": s[
+                "months_loss_gt_budget"
+            ].astype(int),
             "share of months budget binds": s["share_months_binding"],
         }
     )
+    if "months_loss_gt_var" in s.columns:
+        out.insert(6, "months loss > ex-ante VaR", s["months_loss_gt_var"].astype(int))
     order = {p: i for i, p in enumerate(POLICY_LABELS.values())}
     return out.sort_values("policy", key=lambda c: c.map(order)).reset_index(drop=True)
 
@@ -475,7 +518,7 @@ def _by_year_table(d: ReportData) -> pd.DataFrame:
         by[by["policy"] == "optimizer"]
         .set_index("year")["months_loss_gt_budget"]
         .astype(int)
-        .rename("optimizer months loss > budget")
+        .rename(f"optimizer months losing > USD {d.hcfg.es_budget_usd / 1e6:g}m")
     )
     return tbl.join(breaches).reset_index()
 
@@ -823,7 +866,12 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             "up to the origin only.\n\n"
             + df_to_markdown(_summary_table(d), decimals=SUMMARY_DECIMALS)
             + "\n\nUSD m. Hedging cost is carry plus bid-ask spread per year, positive when "
-            "the hedges cost money, the same convention as the frontier above."
+            "the hedges cost money, the same convention as the frontier above. Months losing "
+            "more than the budget is a plain loss frequency, comparable across policies; the "
+            "model test is the count of months beyond each policy's own ex-ante "
+            f"{_pct(d.hcfg.confidence)} VaR, about {_pct(1 - d.hcfg.confidence)} of months if "
+            "the model is right. A full hedge of the forecast has no ex-ante risk in the "
+            "model, so every month it loses counts: its risk is all forecast error."
             + "\n\nMean optimizer hedge ratio over the backtest: "
             + ", ".join(f"{c} {v:.2f}" for c, v in d.ratios_mean.items())
             + ".\n\n"
@@ -848,7 +896,7 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
     sections.append(
         (
             "What this model does not know",
-            _limitations(d, cov95_21, int(opt["months_loss_gt_budget"]), int(opt["n_months"])),
+            _limitations(d, cov95_21, opt, fh),
         )
     )
 
@@ -890,16 +938,18 @@ def _frontier_text(d: ReportData) -> str:
     )
 
 
-def _limitations(d: ReportData, cov95: float, breaches: int, n_months: int) -> str:
+def _limitations(d: ReportData, cov95: float, opt: pd.Series, fh: pd.Series) -> str:
     items = [
         "**The business is synthetic.** Volumes, settlement lags, payout cadences and the "
         "2020 regimes are stylized and calibrated only to public retail-sales seasonality "
         "(ADR-0008). The *method* transfers to a real book; the numbers do not.",
-        f"**The ES budget covers the hedged forecast exposure only.** Forecast error and "
-        f"intra-month exposure variation are outside it, which is why {breaches} of {n_months} "
-        "backtest months lost more than the budget and why even a full hedge retains P&L "
-        "volatility (ADR-0013). A budget meant to bound realized monthly loss would need to "
-        "be set lower, or the policy would need an intra-month adjustment rule (backlog B17).",
+        "**The ES budget covers the hedged forecast exposure only.** Forecast error and "
+        "intra-month exposure variation are outside it: the model sees no risk in a full "
+        "hedge of the forecast, yet that policy keeps USD "
+        f"{_m(fh['daily_vol_annualized_usd'])}m of annual P&L volatility (ADR-0013). "
+        + _var_exceedance_text(d, opt)
+        + " A budget meant to bound realized monthly loss would need to be set lower, or the "
+        "policy would need an intra-month adjustment rule (backlog B17).",
         f"**Forecast intervals are too narrow.** The nominal 95% band covers {_pct(cov95)} at "
         f"the {d.hcfg.horizon_days}-day horizon (ADR-0011, backlog B16). The policy uses the "
         "median, so this affects the risk statement, not the hedge sizes.",
