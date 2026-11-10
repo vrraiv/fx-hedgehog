@@ -18,7 +18,7 @@ Exposure input: calendar_ar1 median forecast, averaged over the trading days of 
 
 ## Recommended hedge ratios by currency
 
-| index | exposure_fcy | exposure_usd_m | hedge_ratio | notional_usd_m | carry_pct_annual | spread_bp | rate_source | is_proxy |
+| ccy | exposure (currency units) | exposure (USD m) | hedge ratio | forward notional (USD m) | carry (% / yr, + = cost) | spread (bp) | rate source | proxy rate |
 |---|---|---|---|---|---|---|---|---|
 | EUR | 38,321,816 | 42.78 | 1 | -42.78 | -1.39 | 0.5 | ecb:FM.D.U2.EUR.4F.KR.DFR.LEV | no |
 | GBP | 25,915,558 | 34.72 | 1 | -34.72 | -0.18 | 0.7 | bis:D.GB | no |
@@ -33,16 +33,16 @@ Exposure input: calendar_ar1 median forecast, averaged over the trading days of 
 
 ## Reference policies at today's exposures
 
-| policy | residual_es_usd_m | annual_cost_usd_m |
+| policy | residual ES (USD m) | expected cost (USD m / yr, + = cost) |
 |---|---|---|
 | unhedged | 12.89 | 0 |
-| legacy_50 | 6.45 | 1.13 |
-| full_hedge | 0 | 2.25 |
+| legacy 50% | 6.57 | 1.16 |
+| full hedge | 0 | 2.25 |
 | optimizer | 4 | -0.02 |
 
 ## Frontier (every other point)
 
-| budget_usd_m | residual_es_usd_m | annual_cost_usd_m | mean_ratio |
+| ES budget (USD m) | residual ES (USD m) | expected cost (USD m / yr, + = cost) | mean hedge ratio |
 |---|---|---|---|
 | 0 | 0 | 2.25 | 1 |
 | 0.89 | 0.89 | 1.72 | 0.94 |
