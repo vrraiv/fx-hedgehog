@@ -1,36 +1,31 @@
 # Data quality report
 
-Generated 2026-11-10 01:25 UTC - overall **WARN**
+Generated 2026-11-10 02:10 UTC - overall **WARN**
 
 | check | status | summary |
 |---|---|---|
-| cache_complete | PASS | all 77 registered series cached |
+| cache_complete | PASS | all 66 registered series cached |
 | schema | PASS | all cached files well-formed |
-| staleness | WARN | 2 series stale or lagging |
+| staleness | PASS | all series fresh at retrieval; cache refreshed within the last two weeks |
 | reconciliation | PASS | all 20 currency/source pairs within tolerance |
 | master_completeness | PASS | 0 NULL cells across 10 currencies; 1 cells filled from BoC/ECB |
 | calendar | PASS | no gaps longer than 6 calendar days |
 | return_outliers | WARN | 33 daily moves beyond 6 EWMA sigma (review, not necessarily errors) |
-| rates_range | PASS | all 22 rate series within [-2.0, 40.0] percent |
+| rates_range | PASS | all 11 rate series within [-2.0, 40.0] percent |
 
 ## Details
 
 ### cache_complete - **PASS**
 
-all 77 registered series cached
+all 66 registered series cached
 
 ### schema - **PASS**
 
 all cached files well-formed
 
-### staleness - **WARN**
+### staleness - **PASS**
 
-2 series stale or lagging
-
-| series | last_date | retrieved | lag_days | limit_days | level |
-|---|---|---|---|---|---|
-| fred:IR3TIB01EZM156N | 2026-01-01 | 2026-11-06 | 309 | 400 | WARN |
-| fred:IR3TIB01GBM156N | 2026-01-01 | 2026-11-06 | 309 | 400 | WARN |
+all series fresh at retrieval; cache refreshed within the last two weeks
 
 ### reconciliation - **PASS**
 
@@ -114,7 +109,7 @@ no gaps longer than 6 calendar days
 
 ### rates_range - **PASS**
 
-all 22 rate series within [-2.0, 40.0] percent
+all 11 rate series within [-2.0, 40.0] percent
 
 | source | series_id | ccy | min_pct | max_pct | last_date |
 |---|---|---|---|---|---|
@@ -128,15 +123,4 @@ all 22 rate series within [-2.0, 40.0] percent
 | bis | D.MX | MXN | 3 | 11.25 | 2026-11-03 |
 | bis | D.US | USD | 0.12 | 5.38 | 2026-11-03 |
 | bis | D.XM | EUR | 0 | 4.5 | 2026-11-03 |
-| boc | TB.CDN.90D.MID | CAD | 0 | 5.12 | 2026-11-04 |
-| fred | DTB3 | USD | -0.05 | 5.36 | 2026-11-04 |
-| fred | IR3TIB01AUM156N | AUD | 0.01 | 5.03 | 2026-08-01 |
-| fred | IR3TIB01CAM156N | CAD | 0.06 | 5.08 | 2026-09-01 |
-| fred | IR3TIB01CHM156N | CHF | -0.93 | 1.77 | 2026-09-01 |
-| fred | IR3TIB01EZM156N | EUR | -0.58 | 3.97 | 2026-01-01 |
-| fred | IR3TIB01GBM156N | GBP | 0.03 | 5.53 | 2026-01-01 |
-| fred | IR3TIB01JPM156N | JPY | -0.07 | 1.56 | 2026-08-01 |
-| fred | IR3TIB01MXM156N | MXN | 3.3 | 11.66 | 2026-09-01 |
-| fred | IRSTCI01BRM156N | BRL | 2 | 15 | 2026-09-01 |
-| fred | IRSTCI01INM156N | INR | 4.25 | 10.25 | 2026-09-01 |
-| fred | SOFR | USD | 0.01 | 5.4 | 2026-11-04 |
+| ecb | FM.D.U2.EUR.4F.KR.DFR.LEV | EUR | -0.5 | 4 | 2026-11-10 |

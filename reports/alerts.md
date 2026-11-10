@@ -1,17 +1,8 @@
 # Alerts
 
-Generated 2026-11-10 01:25 UTC
+Generated 2026-11-10 02:10 UTC
 
-0 FAIL, 2 WARN
-
-### staleness - **WARN**
-
-2 series stale or lagging
-
-| series | last_date | retrieved | lag_days | limit_days | level |
-|---|---|---|---|---|---|
-| fred:IR3TIB01EZM156N | 2026-01-01 | 2026-11-06 | 309 | 400 | WARN |
-| fred:IR3TIB01GBM156N | 2026-01-01 | 2026-11-06 | 309 | 400 | WARN |
+0 FAIL, 1 WARN
 
 ### return_outliers - **WARN**
 

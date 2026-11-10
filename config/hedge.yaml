@@ -7,8 +7,9 @@ es_budget_usd: 4000000
 horizon_days: 21
 confidence: 0.99
 
-# Risk model used inside the optimizer and for the ex-ante ES check. The Student-t with
-# EWMA(0.94) covariance is the only model that passed every 99% coverage test (ADR-0010).
+# Risk model used inside the optimizer and for the ex-ante ES check: Student-t with
+# EWMA(0.94) covariance (ADR-0010). It gets the 99% exception count and ES size right on
+# the current book but its exceptions cluster; the decision report states the verdicts.
 risk_model:
   method: parametric_t
   lam: 0.94

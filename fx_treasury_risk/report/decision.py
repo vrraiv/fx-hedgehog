@@ -512,6 +512,36 @@ def _var_table(d: ReportData) -> pd.DataFrame:
     return out
 
 
+def _model_choice_text(d: ReportData) -> str:
+    """Say which model the optimizer uses and whether it passed, without overclaiming."""
+    v = d.var_backtest
+    row = v[(v["method"] == "t_ewma") & ((v["confidence"] - d.hcfg.confidence).abs() < 1e-9)]
+    name = "the Student-t model with EWMA(0.94) covariance"
+    if row.empty:
+        return f"The optimizer uses {name}; it was not backtested in this run."
+    r = row.iloc[0]
+    if str(r["verdict"]) == "PASS":
+        level = _pct(r["confidence"])
+        return f"The optimizer therefore uses {name}, which passes every test at {level}."
+    failed = [
+        label
+        for col, label in (
+            ("kupiec_p", "exception count (Kupiec)"),
+            ("christoffersen_p", "independence (Christoffersen)"),
+            ("z2_p", "ES size (Acerbi-Szekely)"),
+        )
+        if _num(r[col]) < 0.05
+    ]
+    return (
+        f"No model passes every test at {_pct(r['confidence'])} on this book. The optimizer "
+        f"uses {name}, which fails on {', '.join(failed) or 'conditional coverage'}: "
+        f"{int(r['n_exceptions'])} exceptions against {_num(r['expected_exceptions']):.1f} "
+        f"expected (Kupiec p = {_num(r['kupiec_p']):.2f}), Christoffersen p = "
+        f"{_num(r['christoffersen_p']):.2f}, Acerbi-Szekely p = {_num(r['z2_p']):.2f}. Its "
+        "ES budget is therefore a less reliable bound than the table above suggests."
+    )
+
+
 VAR_DECIMALS = {"expected": 1, "Kupiec p": 2, "Christoffersen p": 2, "Acerbi-Szekely Z2 p": 2}
 
 
@@ -667,8 +697,10 @@ def render_sections(d: ReportData) -> list[tuple[str, str]]:
             "independence, Basel traffic light, Acerbi-Szekely Z2 for ES). A verdict of PASS "
             f"needs every p-value at or above 0.05. Passing: {pass_txt}.\n\n"
             + df_to_markdown(_var_table(d), decimals=VAR_DECIMALS)
-            + "\n\nThe optimizer therefore uses the Student-t model with EWMA(0.94) covariance "
-            f"(tail index {float(h['nu']):.1f} on the latest window). Multi-day coverage is not "
+            + "\n\n"
+            + _model_choice_text(d)
+            + f" Its tail index is {float(h['nu']):.1f} on the latest window. Multi-day "
+            "coverage is not "
             "tested formally because overlapping windows break the tests' independence "
             "assumption (ADR-0010); the 21-day ES is the one-day model scaled by the "
             "square-root of time under the t distribution.",
@@ -819,9 +851,10 @@ def _limitations(d: ReportData, cov95: float, breaches: int, n_months: int) -> s
         "**Coverage is tested at one day.** The 21-day ES is a scaled one-day model; the "
         "overlapping-window tests at longer horizons have too little power to be decisive "
         "(ADR-0010, backlog B11).",
-        "**One risk model inside the optimizer.** The Student-t EWMA model is the one that "
-        "passed the tests on this book; a different book might prefer another, and the "
-        "engine reports all of them so that choice can be revisited.",
+        "**One risk model inside the optimizer, and it does not pass every test.** The "
+        "Student-t EWMA model was chosen on the coverage backtest over the same 2015-2026 "
+        "period the policy is evaluated on, and on the current book its exceptions "
+        "cluster. The engine reports every model so the choice can be revisited.",
         "**Fixing-time mismatches** between sources (noon New York, 14:15 CET, Bank of "
         "Canada daily average) are reconciled within tolerance, not modelled (ADR-0005).",
         "**Weekday calendar, no holidays**, for settlement and payouts (backlog B9).",
