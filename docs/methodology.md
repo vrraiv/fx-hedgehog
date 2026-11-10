@@ -258,10 +258,14 @@ Formulation and solver: ADR-0012. Output: `reports/hedge_recommendation.md` and
 ### 8.1 VaR and ES coverage
 
 Code: `fx_treasury_risk/backtest/coverage.py`, `var_backtest.py`. Design: ADR-0010.
-Daily one-day forecasts from 2015-01-02 along the actual exposure path for historical
-simulation, normal (sample and EWMA covariance) and Student-t (EWMA) models. Tests:
-Kupiec, Christoffersen, conditional coverage, Basel traffic light, Acerbi-Szekely Z1 and
-Z2 with simulated p-values. Output: `var_backtest_results`; `reports/var_backtest.md`.
+Daily one-day forecasts along the actual exposure path for historical simulation,
+normal (sample and EWMA covariance) and Student-t (EWMA 0.94, EWMA 0.97, and GARCH(1,1)
+volatilities with EWMA correlations, `fx_treasury_risk/risk/garch.py`) models. The model
+the optimizer uses is selected on 2012-2014 by the mean FZ0 joint VaR/ES score, with a
+Diebold-Mariano test against the runner-up; every model is then tested from 2015-01-02:
+Kupiec, Christoffersen (with the count of back-to-back exceptions), conditional
+coverage, Basel traffic light, Acerbi-Szekely Z1 and Z2 with simulated p-values. Output:
+`var_model_selection`, `var_backtest_results`; `reports/var_backtest.md`.
 
 ### 8.2 Hedge-policy backtest
 

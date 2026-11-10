@@ -367,3 +367,27 @@ def test_model_choice_text_does_not_overclaim(tmp_path: Path) -> None:
     assert text.startswith("No model passes every test at 99%")
     assert "independence (Christoffersen)" in text and "Kupiec" in text  # Kupiec p reported
     assert "exception count" not in text  # Kupiec passed, so not listed as a failure
+
+
+def test_model_choice_text_reports_the_selection(tmp_path: Path) -> None:
+    d = _data(tmp_path)
+    d.var_selection = pd.DataFrame(
+        {
+            "method": ["t_ewma", "t_garch", "historical"],
+            "optimizer_compatible": [True, True, False],
+            "sel_n": [752, 752, 752],
+            "sel_fz0": [14.22, 14.23, 14.20],
+            "dm_p_vs_selected": [float("nan"), 0.77, 0.3],
+            "selected": [True, False, False],
+            "oos_fz0": [14.55, 14.54, 14.6],
+        }
+    )
+    text = decision._model_choice_text(d)
+    assert "over 752 days of 2012-2014" in text
+    assert "GARCH(1,1) volatilities model, is not distinguishable" in text
+    assert "scores slightly better after 2015" in text
+    assert "not the selected model" not in text
+    d.var_selection.loc[:, "selected"] = [False, True, False]
+    assert "The configuration uses the Student-t, EWMA 0.94 model, not the selected" in (
+        decision._model_choice_text(d)
+    )

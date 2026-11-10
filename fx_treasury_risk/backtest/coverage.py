@@ -7,10 +7,14 @@ forecasts ``var_t``, ``es_t`` made at ``t-1`` for day ``t``, at confidence ``alp
 * Christoffersen (1998) independence test: do exceptions cluster?
 * Conditional coverage: the two combined (LR_cc = LR_uc + LR_ind).
 * Basel traffic light: exceptions in the last 250 days at 99%.
+* Consecutive exceptions: the count behind a Christoffersen failure, so a rejection
+  driven by one episode can be told apart from a model that is persistently slow.
 * Acerbi and Szekely (2014) Z1 and Z2 tests of Expected Shortfall, with p-values from
   Monte Carlo under the model's own predictive distribution. The statistics are written
   in terms of *losses*, so they are zero under H0 and **positive when realised tail losses
   exceed the forecast ES** (the original paper uses P&L and the opposite sign).
+* FZ0 scoring function (Patton, Ziegel & Chen, 2019) for ranking VaR/ES models jointly,
+  and the Diebold-Mariano (1995) test of equal expected score.
 """
 
 from __future__ import annotations
@@ -34,6 +38,7 @@ class CoverageResult:
     kupiec_p: float
     christoffersen_lr: float
     christoffersen_p: float
+    n_consecutive: int  # exceptions that follow an exception on the previous day
     conditional_lr: float
     conditional_p: float
     traffic_light: str
@@ -119,10 +124,47 @@ def coverage_tests(loss: np.ndarray, var: np.ndarray, alpha: float) -> CoverageR
         kupiec_p=p_uc,
         christoffersen_lr=lr_ind,
         christoffersen_p=p_ind,
+        n_consecutive=int((exc[1:] & exc[:-1]).sum()),
         conditional_lr=lr_cc,
         conditional_p=p_cc,
         traffic_light=traffic_light(last) if alpha >= 0.99 else "n/a",
     )
+
+
+# ---------------------------------------------------------------------------------------
+# Model ranking: FZ0 score and Diebold-Mariano
+# ---------------------------------------------------------------------------------------
+def fz0_score(loss: np.ndarray, var: np.ndarray, es: np.ndarray, alpha: float) -> np.ndarray:
+    """Daily FZ0 loss of a (VaR, ES) forecast pair; lower is better.
+
+    Patton, Ziegel & Chen (2019), eq. 6, rewritten for losses (positive VaR and ES):
+    ``1[L > VaR] (L - VaR) / ((1 - alpha) ES) + VaR / ES + log(ES) - 1``. It is strictly
+    consistent for the pair, so its mean ranks models on VaR and ES together and, unlike
+    an exception count, uses every day of the sample. Differences between models do not
+    depend on the currency unit (the ``log`` of a common scale cancels).
+    """
+    exc = loss > var
+    out: np.ndarray = exc * (loss - var) / ((1 - alpha) * es) + var / es + np.log(es) - 1.0
+    return out
+
+
+def diebold_mariano(d: np.ndarray, lags: int | None = None) -> tuple[float, float]:
+    """Test that the score differential ``d`` has mean zero; returns (statistic, p-value).
+
+    Newey-West long-run variance with Bartlett weights, ``lags`` defaulting to
+    ``floor(T^(1/3))``; two-sided normal p-value.
+    """
+    x = np.asarray(d, dtype=float)
+    t = len(x)
+    lags = int(np.floor(t ** (1 / 3))) if lags is None else lags
+    u = x - x.mean()
+    lrv = float(u @ u) / t
+    for k in range(1, lags + 1):
+        lrv += 2 * (1 - k / (lags + 1)) * float(u[k:] @ u[:-k]) / t
+    if lrv <= 0:
+        return float("nan"), float("nan")
+    stat = float(x.mean() / np.sqrt(lrv / t))
+    return stat, float(2 * stats.norm.sf(abs(stat)))
 
 
 # ---------------------------------------------------------------------------------------

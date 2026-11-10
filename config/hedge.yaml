@@ -8,8 +8,9 @@ horizon_days: 21
 confidence: 0.99
 
 # Risk model used inside the optimizer and for the ex-ante ES check: Student-t with
-# EWMA(0.94) covariance (ADR-0010). It gets the 99% exception count and ES size right on
-# the current book but its exceptions cluster; the decision report states the verdicts.
+# EWMA(0.94) covariance, the model selected on 2012-2014 by the FZ0 score (ADR-0010). It
+# gets the 99% exception count and ES size right from 2015 but its exceptions cluster;
+# the decision report states the verdicts and flags it if the selection changes.
 risk_model:
   method: parametric_t
   lam: 0.94

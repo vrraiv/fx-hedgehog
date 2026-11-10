@@ -21,6 +21,7 @@ import duckdb
 import pandas as pd
 
 from fx_treasury_risk import __version__, config, db
+from fx_treasury_risk.backtest.var_backtest import method_for_ewma
 from fx_treasury_risk.hedge.config import HedgeConfig, load_hedge_config
 from fx_treasury_risk.report import plots
 from fx_treasury_risk.report.tables import df_to_markdown, fmt, write_markdown
@@ -56,6 +57,8 @@ VAR_METHOD_LABELS = {
     "normal_sample": "normal, sample covariance",
     "normal_ewma": "normal, EWMA 0.94",
     "t_ewma": "Student-t, EWMA 0.94",
+    "t_ewma97": "Student-t, EWMA 0.97",
+    "t_garch": "Student-t, GARCH(1,1) volatilities",
 }
 SCENARIO_LABELS = {
     "chf_depeg_2015": "CHF floor removed, Jan 2015",
@@ -104,6 +107,7 @@ class ReportData:
     policy_by_year: pd.DataFrame
     ratios_mean: pd.Series
     figures: dict[str, Path] = field(default_factory=dict)
+    var_selection: pd.DataFrame = field(default_factory=pd.DataFrame)  # 2012-2014 ranking
 
 
 # ----------------------------------------------------------------------------- loading
@@ -183,6 +187,11 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         )
 
         var_backtest = _read(con, "var_backtest_results")
+        var_selection = (
+            _read(con, "var_model_selection")
+            if _table_exists(con, "var_model_selection")
+            else pd.DataFrame()
+        )
         rr = _read(con, "risk_results")
         rr = rr[
             (rr["horizon_days"] == hcfg.horizon_days)
@@ -247,6 +256,7 @@ def load_report_data(paths: config.Paths, hcfg: HedgeConfig | None = None) -> Re
         policy_months=policy_months,
         policy_by_year=policy_by_year,
         ratios_mean=ratios_mean,
+        var_selection=var_selection,
     )
 
 
@@ -509,20 +519,62 @@ def _var_table(d: ReportData) -> pd.DataFrame:
             "verdict": v["verdict"],
         }
     )
+    if "n_consecutive" in v.columns:
+        out.insert(4, "back-to-back", v["n_consecutive"].astype(int))
     return out
 
 
+def _var_label(method: str) -> str:
+    return f"the {VAR_METHOD_LABELS.get(method, method)} model"
+
+
+def _selection_text(d: ReportData) -> str:
+    """How the model was chosen before the test window, and how firm that choice is."""
+    s = d.var_selection
+    if s.empty or not s["selected"].astype(bool).any():
+        return ""
+    best = s[s["selected"].astype(bool)].iloc[0]
+    rivals = s[~s["selected"].astype(bool) & s["optimizer_compatible"].astype(bool)]
+    text = (
+        f"The model was chosen before that window opens: over {int(best['sel_n'])} days of "
+        "2012-2014, scoring VaR and ES together with the FZ0 loss, "
+        f"{_var_label(str(best['method']))} scored best of the models the optimizer can use."
+    )
+    if not rivals.empty:
+        r = rivals.sort_values("sel_fz0").iloc[0]
+        p = _num(r["dm_p_vs_selected"])
+        verdict = "is not distinguishable from it" if p >= 0.05 else "is significantly worse"
+        text += (
+            f" The runner-up, {_var_label(str(r['method']))}, {verdict} "
+            f"(Diebold-Mariano p = {p:.2f})"
+        )
+        if _num(r["oos_fz0"]) < _num(best["oos_fz0"]):
+            text += ", and scores slightly better after 2015; the choice is kept, not revisited"
+        text += "."
+    return text
+
+
 def _model_choice_text(d: ReportData) -> str:
-    """Say which model the optimizer uses and whether it passed, without overclaiming."""
+    """Say which model the optimizer uses, how it was chosen and whether it passed."""
     v = d.var_backtest
-    row = v[(v["method"] == "t_ewma") & ((v["confidence"] - d.hcfg.confidence).abs() < 1e-9)]
-    name = "the Student-t model with EWMA(0.94) covariance"
+    at = v[(v["confidence"] - d.hcfg.confidence).abs() < 1e-9]
+    level = _pct(d.hcfg.confidence)
+    method = method_for_ewma(d.hcfg.risk_lam) or f"t_ewma (lambda {d.hcfg.risk_lam:g})"
+    name = _var_label(method)
+    parts = [_selection_text(d)]
+    s = d.var_selection
+    if not s.empty and s["selected"].astype(bool).any():
+        chosen = str(s[s["selected"].astype(bool)].iloc[0]["method"])
+        if chosen != method:
+            parts.append(f"The configuration uses {name}, not the selected model.")
+    row = at[at["method"] == method]
     if row.empty:
-        return f"The optimizer uses {name}; it was not backtested in this run."
+        parts.append(f"The optimizer uses {name}; it was not backtested in this run.")
+        return " ".join(p for p in parts if p)
     r = row.iloc[0]
     if str(r["verdict"]) == "PASS":
-        level = _pct(r["confidence"])
-        return f"The optimizer therefore uses {name}, which passes every test at {level}."
+        parts.append(f"The optimizer uses {name}, which passes every test at {level}.")
+        return " ".join(p for p in parts if p)
     failed = [
         label
         for col, label in (
@@ -532,14 +584,27 @@ def _model_choice_text(d: ReportData) -> str:
         )
         if _num(r[col]) < 0.05
     ]
-    return (
-        f"No model passes every test at {_pct(r['confidence'])} on this book. The optimizer "
-        f"uses {name}, which fails on {', '.join(failed) or 'conditional coverage'}: "
+    none_pass = not (at["verdict"] == "PASS").any()
+    lead = f"No model passes every test at {level} on this book. " if none_pass else ""
+    text = (
+        f"{lead}The optimizer uses {name}, which fails on "
+        f"{', '.join(failed) or 'conditional coverage'}: "
         f"{int(r['n_exceptions'])} exceptions against {_num(r['expected_exceptions']):.1f} "
         f"expected (Kupiec p = {_num(r['kupiec_p']):.2f}), Christoffersen p = "
-        f"{_num(r['christoffersen_p']):.2f}, Acerbi-Szekely p = {_num(r['z2_p']):.2f}. Its "
-        "ES budget is therefore a less reliable bound than the table above suggests."
+        f"{_num(r['christoffersen_p']):.2f}, Acerbi-Szekely p = {_num(r['z2_p']):.2f}."
     )
+    if "n_consecutive" in r.index and _num(r["christoffersen_p"]) < 0.05:
+        n = int(r["n_consecutive"])
+        text += (
+            f" The independence failure rests on {n} exception{'s' if n != 1 else ''} that "
+            "came the day after another: the model is right on average but slow to react "
+            "inside a shock, so in a stressed week its ES budget is a looser bound than the "
+            "table suggests."
+        )
+    else:
+        text += " Its ES budget is therefore a less reliable bound than the table suggests."
+    parts.append(text)
+    return " ".join(p for p in parts if p)
 
 
 VAR_DECIMALS = {"expected": 1, "Kupiec p": 2, "Christoffersen p": 2, "Acerbi-Szekely Z2 p": 2}
