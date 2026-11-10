@@ -1,8 +1,17 @@
 # Alerts
 
-Generated 2026-11-10 17:38 UTC
+Generated 2026-11-10 18:09 UTC
 
-0 FAIL, 1 WARN
+0 FAIL, 2 WARN
+
+### staleness - **WARN**
+
+2 series stale or lagging
+
+| series | last_date | retrieved | lag_days | limit_days | level |
+|---|---|---|---|---|---|
+| statcan:v1446859481 | 2026-08-01 | 2026-11-10 | 101 | 130 | WARN |
+| statcan:v1446859483 | 2026-08-01 | 2026-11-10 | 101 | 130 | WARN |
 
 ### return_outliers - **WARN**
 
