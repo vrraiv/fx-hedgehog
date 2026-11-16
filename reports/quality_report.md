@@ -1,12 +1,12 @@
 # Data quality report
 
-Generated 2026-11-10 19:07 UTC - overall **WARN**
+Generated 2026-11-16 21:12 UTC - overall **WARN**
 
 | check | status | summary |
 |---|---|---|
 | cache_complete | PASS | all 66 registered series cached |
 | schema | PASS | all cached files well-formed |
-| staleness | WARN | 2 series stale or lagging |
+| staleness | WARN | 4 series stale or lagging |
 | reconciliation | PASS | all 20 currency/source pairs within tolerance |
 | master_completeness | PASS | 0 NULL cells across 10 currencies; 1 cells filled from BoC/ECB |
 | calendar | PASS | no gaps longer than 6 calendar days |
@@ -25,12 +25,14 @@ all cached files well-formed
 
 ### staleness - **WARN**
 
-2 series stale or lagging
+4 series stale or lagging
 
 | series | last_date | retrieved | lag_days | limit_days | level |
 |---|---|---|---|---|---|
-| statcan:v1446859481 | 2026-08-01 | 2026-11-10 | 101 | 130 | WARN |
-| statcan:v1446859483 | 2026-08-01 | 2026-11-10 | 101 | 130 | WARN |
+| fred:RSXFSN | 2026-09-01 | 2026-11-16 | 76 | 100 | WARN |
+| fred:RSXFS | 2026-09-01 | 2026-11-16 | 76 | 100 | WARN |
+| statcan:v1446859481 | 2026-08-01 | 2026-11-16 | 107 | 130 | WARN |
+| statcan:v1446859483 | 2026-08-01 | 2026-11-16 | 107 | 130 | WARN |
 
 ### reconciliation - **PASS**
 
@@ -118,14 +120,14 @@ all 11 rate series within [-2.0, 40.0] percent
 
 | source | series_id | ccy | min_pct | max_pct | last_date |
 |---|---|---|---|---|---|
-| bis | D.AU | AUD | 0.1 | 4.75 | 2026-10-29 |
-| bis | D.BR | BRL | 2 | 15 | 2026-11-03 |
-| bis | D.CA | CAD | 0.25 | 5 | 2026-11-02 |
-| bis | D.CH | CHF | -0.75 | 1.75 | 2026-11-03 |
-| bis | D.GB | GBP | 0.1 | 5.25 | 2026-11-02 |
+| bis | D.AU | AUD | 0.1 | 4.85 | 2026-11-05 |
+| bis | D.BR | BRL | 2 | 15 | 2026-11-10 |
+| bis | D.CA | CAD | 0.25 | 5 | 2026-11-09 |
+| bis | D.CH | CHF | -0.75 | 1.75 | 2026-11-10 |
+| bis | D.GB | GBP | 0.1 | 5.25 | 2026-11-09 |
 | bis | D.IN | INR | 4 | 8.5 | 2026-10-19 |
-| bis | D.JP | JPY | -0.1 | 1.25 | 2026-11-03 |
-| bis | D.MX | MXN | 3 | 11.25 | 2026-11-03 |
-| bis | D.US | USD | 0.12 | 5.38 | 2026-11-03 |
-| bis | D.XM | EUR | 0 | 4.5 | 2026-11-03 |
-| ecb | FM.D.U2.EUR.4F.KR.DFR.LEV | EUR | -0.5 | 4 | 2026-11-10 |
+| bis | D.JP | JPY | -0.1 | 1.25 | 2026-11-10 |
+| bis | D.MX | MXN | 3 | 11.25 | 2026-11-10 |
+| bis | D.US | USD | 0.12 | 5.38 | 2026-11-10 |
+| bis | D.XM | EUR | 0 | 4.5 | 2026-11-10 |
+| ecb | FM.D.U2.EUR.4F.KR.DFR.LEV | EUR | -0.5 | 4 | 2026-11-16 |

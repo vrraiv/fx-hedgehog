@@ -2,38 +2,38 @@
 
 ## Summary
 
-Generated 2026-11-10 19:09 UTC from market data retrieved 2026-11-10; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, averaged over the trading days of 2026-12.
+Generated 2026-11-16 21:15 UTC from market data retrieved 2026-11-16; data quality **WARN**; ES budget USD 4m at 21 days / 99%; exposure input: calendar_ar1 median forecast, averaged over the trading days of 2026-12.
 
 ## The question and the answer
 
 *For a fixed Expected Shortfall budget at the 21-day horizon, what hedge ratios by currency minimise expected hedging cost, and how would that policy have performed out of sample from 2015 to the present, including March 2020 and 2022?*
 
-**With a 21-day 99% Expected Shortfall budget of USD 4m, hedge EUR, GBP, CAD, JPY, AUD, CHF, SGD in full; MXN 36%, BRL 67%; leave INR unhedged.** That programme earns about USD 0.2m a year of carry against USD 0.4m of bid-ask spread, and cuts the ES of the forecast book from USD 14.1m to USD 4.0m. Out of sample from 2015 with a monthly rebalance (143 months), the policy's annualized P&L volatility is USD 4.6m against 10.0m unhedged and 2.3m for a full hedge; its total P&L is USD -6.8m (-24.5m unhedged, -21.4m full hedge), its maximum drawdown USD -18.4m (-36.3m unhedged). Its monthly loss exceeded its own ex-ante 99% VaR in 5 of 143 months, against about 1.4 expected if the risk model is right: too many (binomial p = 0.015). The monthly VaR covers the hedged forecast exposure only, so forecast error and intra-month exposure swings add risk it does not count. Its USD 14.5m lead over a full hedge is not statistically distinguishable from zero over 143 months (p = 0.33): it collected USD 39.8m more carry net of spread, which is known when the forwards are dealt, and lost USD 25.3m on the currency risk it left open, which is not.
+**With a 21-day 99% Expected Shortfall budget of USD 4m, hedge EUR, GBP, CAD, JPY, AUD, CHF, SGD in full; MXN 39%, BRL 66%; leave INR unhedged.** That programme earns about USD 0.1m a year of carry against USD 0.4m of bid-ask spread, and cuts the ES of the forecast book from USD 14.1m to USD 4.0m. Out of sample from 2015 with a monthly rebalance (143 months), the policy's annualized P&L volatility is USD 4.6m against 10.0m unhedged and 2.3m for a full hedge; its total P&L is USD -6.8m (-24.5m unhedged, -21.4m full hedge), its maximum drawdown USD -18.4m (-36.3m unhedged). Its monthly loss exceeded its own ex-ante 99% VaR in 5 of 143 months, against about 1.4 expected if the risk model is right: too many (binomial p = 0.015). The monthly VaR covers the hedged forecast exposure only, so forecast error and intra-month exposure swings add risk it does not count. Its USD 14.5m lead over a full hedge is not statistically distinguishable from zero over 143 months (p = 0.33): it collected USD 39.8m more carry net of spread, which is known when the forwards are dealt, and lost USD 25.3m on the currency risk it left open, which is not.
 
 | ccy | forecast exposure (USD m) | hedge ratio | forward notional (USD m) | carry % / yr (+ = costs) | spread bp | rate source |
 |---|---|---|---|---|---|---|
 | EUR | 49.4 | 1.00 | -49.4 | -1.39 | 0.5 | ecb:FM.D.U2.EUR.4F.KR.DFR.LEV |
-| GBP | 40.0 | 1.00 | -40.0 | -0.18 | 0.7 | bis:D.GB |
+| GBP | 40.0 | 1.00 | -40.0 | 0.07 | 0.7 | bis:D.GB |
 | CAD | 25.9 | 1.00 | -25.9 | -1.43 | 0.7 | bis:D.CA |
 | JPY | 19.7 | 1.00 | -19.7 | -2.66 | 0.6 | bis:D.JP |
-| AUD | 13.7 | 1.00 | -13.7 | 0.67 | 0.9 | bis:D.AU |
+| AUD | 13.7 | 1.00 | -13.7 | 0.92 | 0.9 | bis:D.AU |
 | CHF | 23.6 | 1.00 | -23.6 | -3.93 | 0.8 | bis:D.CH |
-| MXN | 26.9 | 0.36 | -9.6 | 2.65 | 3.0 | bis:D.MX |
-| BRL | 30.6 | 0.67 | -20.5 | 9.71 | 8.0 | bis:D.BR |
+| MXN | 26.9 | 0.39 | -10.5 | 2.40 | 3.0 | bis:D.MX |
+| BRL | 30.6 | 0.66 | -20.2 | 9.71 | 8.0 | bis:D.BR |
 | INR | 32.3 | 0.00 | 0.0 | 1.56 | 6.0 | bis:D.IN |
 | SGD | 14.6 | 1.00 | -14.6 | 0.00 | 1.5 | proxy:USD:D.US |
 
-Carry is the annualized forward discount of the currency against USD (positive: selling the currency forward costs money; negative: it earns). The optimizer spends the budget where risk reduction is expensive and hedges everything that is cheap or free to hedge: a full hedge costs USD 2.50m a year for zero residual ES, while at the USD 4m budget the cost is USD 0.21m a year (negative = the programme earns carry). Beyond a budget of about USD 10m the constraint stops binding and the policy is simply 'hedge every currency whose forward earns carry', which is the cheapest book regardless of risk. The out-of-sample evidence is in the policy section below.
+Carry is the annualized forward discount of the currency against USD (positive: selling the currency forward costs money; negative: it earns). The optimizer spends the budget where risk reduction is expensive and hedges everything that is cheap or free to hedge: a full hedge costs USD 2.57m a year for zero residual ES, while at the USD 4m budget the cost is USD 0.30m a year (negative = the programme earns carry). Beyond a budget of about USD 11m the constraint stops binding and the policy is simply 'hedge every currency whose forward earns carry', which is the cheapest book regardless of risk. The out-of-sample evidence is in the policy section below.
 
 ## Data and quality
 
-Market data: 8 checks on 2026-11-10 retrievals, overall **WARN** (`reports/quality_report.md`, `reports/alerts.md`). Sources are FRED H.10 noon rates (primary), Bank of Canada and ECB crosses (reconciliation and fallback), BIS policy rates and effective exchange rates, the ECB deposit rate, and US and Canadian retail sales for the seasonality of the synthetic flows. The flows themselves are generated from `config/flows.yaml`; no real company's data is used.
+Market data: 8 checks on 2026-11-16 retrievals, overall **WARN** (`reports/quality_report.md`, `reports/alerts.md`). Sources are FRED H.10 noon rates (primary), Bank of Canada and ECB crosses (reconciliation and fallback), BIS policy rates and effective exchange rates, the ECB deposit rate, and US and Canadian retail sales for the seasonality of the synthetic flows. The flows themselves are generated from `config/flows.yaml`; no real company's data is used.
 
 | check | status | summary |
 |---|---|---|
 | cache_complete | PASS | all 66 registered series cached |
 | schema | PASS | all cached files well-formed |
-| staleness | WARN | 2 series stale or lagging |
+| staleness | WARN | 4 series stale or lagging |
 | reconciliation | PASS | all 20 currency/source pairs within tolerance |
 | master_completeness | PASS | 0 NULL cells across 10 currencies; 1 cells filled from BoC/ECB |
 | calendar | PASS | no gaps longer than 6 calendar days |
@@ -175,14 +175,14 @@ Historical replays of five episodes and four hypothetical shocks applied to the 
 
 ## Cost of risk reduction: the frontier and the chosen point
 
-The frontier traces the minimum expected hedging cost (carry plus spread, per year) for every ES budget from zero (full hedge) to the unhedged ES. A full hedge costs USD 2.50m a year for zero residual ES, while at the USD 4m budget the cost is USD 0.21m a year (negative = the programme earns carry). Beyond a budget of about USD 10m the constraint stops binding and the policy is simply 'hedge every currency whose forward earns carry', which is the cheapest book regardless of risk. Reference policies at today's exposures:
+The frontier traces the minimum expected hedging cost (carry plus spread, per year) for every ES budget from zero (full hedge) to the unhedged ES. A full hedge costs USD 2.57m a year for zero residual ES, while at the USD 4m budget the cost is USD 0.30m a year (negative = the programme earns carry). Beyond a budget of about USD 11m the constraint stops binding and the policy is simply 'hedge every currency whose forward earns carry', which is the cheapest book regardless of risk. Reference policies at today's exposures:
 
 | policy | residual ES (USD m) | expected cost (USD m / yr, + = cost) |
 |---|---|---|
 | unhedged | 14.06 | 0.00 |
-| legacy 50% | 7.71 | 1.14 |
-| full hedge | 0.00 | 2.50 |
-| optimizer | 4.00 | 0.16 |
+| legacy 50% | 7.71 | 1.16 |
+| full hedge | 0.00 | 2.57 |
+| optimizer | 4.00 | 0.26 |
 
 ![cost-risk frontier](figures/hedge_frontier.png)
 
