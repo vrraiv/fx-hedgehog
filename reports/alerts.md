@@ -1,17 +1,19 @@
 # Alerts
 
-Generated 2026-11-10 19:07 UTC
+Generated 2026-11-16 21:12 UTC
 
 0 FAIL, 2 WARN
 
 ### staleness - **WARN**
 
-2 series stale or lagging
+4 series stale or lagging
 
 | series | last_date | retrieved | lag_days | limit_days | level |
 |---|---|---|---|---|---|
-| statcan:v1446859481 | 2026-08-01 | 2026-11-10 | 101 | 130 | WARN |
-| statcan:v1446859483 | 2026-08-01 | 2026-11-10 | 101 | 130 | WARN |
+| fred:RSXFSN | 2026-09-01 | 2026-11-16 | 76 | 100 | WARN |
+| fred:RSXFS | 2026-09-01 | 2026-11-16 | 76 | 100 | WARN |
+| statcan:v1446859481 | 2026-08-01 | 2026-11-16 | 107 | 130 | WARN |
+| statcan:v1446859483 | 2026-08-01 | 2026-11-16 | 107 | 130 | WARN |
 
 ### return_outliers - **WARN**
 
